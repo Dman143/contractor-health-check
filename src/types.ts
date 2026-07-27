@@ -19,6 +19,13 @@ export type CategoryScore = {
   score: number;
 };
 
+export type OnboardingData = {
+  name: string;
+  company: string;
+  email: string;
+  teamSize: string;
+};
+
 export type ResultsData = {
   overall: number;
   categories: CategoryScore[];
