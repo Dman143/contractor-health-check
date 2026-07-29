@@ -23,6 +23,8 @@ export type LeadProfile = {
   name: string;
   company: string;
   email: string;
+  phone: string;
+  message: string;
   trade: string;
   teamSize: string;
   monthlyRevenue: string;
