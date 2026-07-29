@@ -28,7 +28,8 @@ await loadEnvFile();
 
 const PORT = Number(process.env.PORT ?? 4174);
 const MAX_BODY_BYTES = 1024 * 1024;
-const requiredEnv = ['SMTP_USER', 'SMTP_PASS', 'REPORT_RECIPIENT_EMAIL'];
+const requiredEnv = ['SMTP_USER', 'SMTP_PASS'];
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const sanitizeHeader = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
 
@@ -75,7 +76,7 @@ const smtpCommand = async (socket, command, expectedCodes) => {
   return response;
 };
 
-const sendSmtpEmail = async ({ subject, text, html, replyTo }) => {
+const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc }) => {
   for (const key of requiredEnv) {
     if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
   }
@@ -84,7 +85,8 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo }) => {
   const port = Number(process.env.SMTP_PORT ?? 465);
   const secure = (process.env.SMTP_SECURE ?? 'true') !== 'false';
   const from = sanitizeHeader(process.env.REPORT_FROM_EMAIL ?? process.env.SMTP_USER);
-  const to = sanitizeHeader(process.env.REPORT_RECIPIENT_EMAIL);
+  const recipient = sanitizeHeader(to);
+  const blindCopy = sanitizeHeader(bcc);
   const boundary = `report-${Date.now().toString(36)}`;
   const socket = secure ? tls.connect(port, host, { servername: host }) : net.connect(port, host);
 
@@ -95,18 +97,20 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo }) => {
     await smtpCommand(socket, Buffer.from(process.env.SMTP_USER).toString('base64'), [334]);
     await smtpCommand(socket, Buffer.from(process.env.SMTP_PASS).toString('base64'), [235]);
     await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
-    await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
+    await smtpCommand(socket, `RCPT TO:<${recipient}>`, [250, 251]);
+    if (blindCopy && blindCopy !== recipient) await smtpCommand(socket, `RCPT TO:<${blindCopy}>`, [250, 251]);
     await smtpCommand(socket, 'DATA', [354]);
 
     const headers = [
-      `From: TradeBuilt Contractor Health Check <${from}>`,
-      `To: ${to}`,
+      `From: TradeBuilt Growth <${from}>`,
+      `To: ${recipient}`,
       `Subject: ${sanitizeHeader(subject)}`,
       replyTo ? `Reply-To: ${sanitizeHeader(replyTo)}` : '',
       'MIME-Version: 1.0',
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ].filter(Boolean).join('\r\n');
-    const message = `${headers}\r\n\r\n--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n\r\n--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n${html}\r\n\r\n--${boundary}--\r\n.`;
+    const messageBody = `${headers}\r\n\r\n--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${text}\r\n\r\n--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${html}\r\n\r\n--${boundary}--`;
+    const message = `${messageBody.replace(/(^|\r\n)\./g, '$1..')}\r\n.`;
     await smtpCommand(socket, message, [250]);
     await smtpCommand(socket, 'QUIT', [221]);
   } finally {
@@ -130,18 +134,18 @@ const formatReportEmail = (payload) => {
   ];
   const opportunityLines = results.opportunities.map(({ category, score, description }) => `${category}: ${score}% - ${description}`);
   const lines = [
-    'TradeBuilt Contractor Health Check Report', '', `Date completed: ${completedDate}`, '', 'Lead details', ...leadLines, '', `Assessment score: ${results.overall}/100`, '', 'Category scores', ...results.categories.map(({ category, score }) => `${category}: ${score}%`), '', 'Top strengths', ...results.strengths.map(({ category, score }) => `${category}: ${score}%`), '', 'Top opportunities', ...opportunityLines, '', 'Recommended next steps', ...recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`),
+    'TradeBuilt Business Health Report', '', `Date completed: ${completedDate}`, '', 'Business profile', ...leadLines, '', `Assessment score: ${results.overall}/100`, '', 'Category scores', ...results.categories.map(({ category, score }) => `${category}: ${score}%`), '', 'Top strengths', ...results.strengths.map(({ category, score }) => `${category}: ${score}%`), '', 'Top opportunities', ...opportunityLines, '', 'Recommended next steps', ...recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`),
   ];
-  const section = (title, items) => `<h2>${escapeHtml(title)}</h2><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
-  const html = `<main><h1>TradeBuilt Contractor Health Check Report</h1><p><strong>Date completed:</strong> ${escapeHtml(completedDate)}</p>${section('Lead details', leadLines)}<h2>Assessment score</h2><p><strong>${escapeHtml(results.overall)}/100</strong></p>${section('Category scores', results.categories.map(({ category, score }) => `${category}: ${score}%`))}${section('Top strengths', results.strengths.map(({ category, score }) => `${category}: ${score}%`))}${section('Top opportunities', opportunityLines)}${section('Recommended next steps', recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`))}</main>`;
+  const section = (title, items) => `<div style="margin-top:28px"><h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h2><ul style="margin:0;padding-left:20px;color:#334155;line-height:1.7">${items.map((item) => `<li style="margin-bottom:8px">${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">Your TradeBuilt scorecard and 30-day priorities are ready.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Your Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p></div>${section('Performance scorecard', results.categories.map(({ category, score }) => `${category}: ${score}%`))}${section('Strongest operating areas', results.strengths.map(({ category, score }) => `${category}: ${score}%`))}${section('Priority opportunities', opportunityLines)}${section('Your first 30 days', recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`))}<p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">Keep this report as a working scorecard. Revisit these priorities weekly and retake the assessment as your systems improve.</p></div></main></body></html>`;
 
-  return { subject: `Contractor Health Check Report - ${subjectName}`, text: lines.join('\n'), html, replyTo: leadProfile.email };
+  return { subject: `Your TradeBuilt Business Health Report - ${subjectName}`, text: lines.join('\n'), html, to: leadProfile.email, bcc: process.env.REPORT_RECIPIENT_EMAIL };
 };
 
 const handleEmailReport = async (request, response) => {
   try {
     const payload = await readJsonBody(request);
-    if (!payload.leadProfile?.email || !payload.results?.categories?.length) {
+    if (!emailPattern.test(payload.leadProfile?.email ?? '') || !payload.results?.categories?.length) {
       jsonResponse(response, 400, { message: 'Lead profile and assessment results are required.' });
       return;
     }
@@ -150,6 +154,30 @@ const handleEmailReport = async (request, response) => {
   } catch (error) {
     console.error(error);
     jsonResponse(response, 500, { message: 'Unable to send report email.' });
+  }
+};
+
+const handleStrategySession = async (request, response) => {
+  try {
+    const payload = await readJsonBody(request);
+    if (!payload.name?.trim() || !payload.company?.trim() || !emailPattern.test(payload.email ?? '')) {
+      jsonResponse(response, 400, { message: 'Name, company, and a valid email are required.' });
+      return;
+    }
+    const advisorEmail = process.env.REPORT_RECIPIENT_EMAIL;
+    if (!advisorEmail) throw new Error('Missing required environment variable: REPORT_RECIPIENT_EMAIL');
+    const details = [`Name: ${payload.name}`, `Company: ${payload.company}`, `Email: ${payload.email}`, `Phone: ${payload.phone || 'Not supplied'}`, `Assessment score: ${payload.assessmentScore}/100`, `Priority area: ${payload.priorityArea}`, `Business context: ${payload.message || 'Not supplied'}`];
+    await sendSmtpEmail({
+      to: advisorEmail,
+      replyTo: payload.email,
+      subject: `TradeBuilt strategy request - ${payload.company}`,
+      text: ['A contractor has requested a TradeBuilt strategy session.', '', ...details].join('\n'),
+      html: `<main style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h1>New TradeBuilt strategy request</h1><ul>${details.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></main>`,
+    });
+    jsonResponse(response, 200, { message: 'Strategy session request sent.' });
+  } catch (error) {
+    console.error(error);
+    jsonResponse(response, 500, { message: 'Unable to send strategy session request.' });
   }
 };
 
@@ -167,11 +195,15 @@ createServer(async (request, response) => {
     await handleEmailReport(request, response);
     return;
   }
+  if (request.method === 'POST' && request.url === '/api/strategy-session') {
+    await handleStrategySession(request, response);
+    return;
+  }
   if (request.method === 'GET') {
     serveStatic(request, response);
     return;
   }
   jsonResponse(response, 405, { message: 'Method not allowed.' });
 }).listen(PORT, () => {
-  console.log(`Contractor Health Check server listening on http://localhost:${PORT}`);
+  console.log(`TradeBuilt server listening on http://localhost:${PORT}`);
 });

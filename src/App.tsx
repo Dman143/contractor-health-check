@@ -28,6 +28,11 @@ type EmailReportPayload = {
   completedAt: string;
 };
 
+type StrategySessionPayload = StrategySessionRequest & {
+  assessmentScore: number;
+  priorityArea: Category;
+};
+
 const sendReportEmail = async (payload: EmailReportPayload) => {
   const response = await fetch('/api/email-report', {
     body: JSON.stringify(payload),
@@ -35,9 +40,17 @@ const sendReportEmail = async (payload: EmailReportPayload) => {
     method: 'POST',
   });
 
-  if (!response.ok) {
-    throw new Error('Unable to send report email.');
-  }
+  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to send report email.');
+};
+
+const sendStrategySessionRequest = async (payload: StrategySessionPayload) => {
+  const response = await fetch('/api/strategy-session', {
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+
+  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to send your request.');
 };
 
 const emptyLeadProfile: LeadProfile = {
@@ -61,48 +74,108 @@ const getScoreBand = (score: number): ScoreBand => {
   }
 
   if (score >= 50) {
-    return { label: 'Growth Constrained', description: 'Several SaaS-tracked operating areas need attention before growth becomes predictable.' };
+    return { label: 'Growth Constrained', description: 'Several operating areas need attention before growth becomes predictable and profitable.' };
   }
 
   return { label: 'Stabilize First', description: 'Focus on cash, delivery, and sales control before adding more volume or complexity.' };
 };
 
 
-const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const pdfSafe = (value: string) => value.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const wrapPdfText = (value: string, limit = 82) => {
+  const words = pdfSafe(value).split(/\s+/);
+  return words.reduce<string[]>((lines, word) => {
+    const last = lines.at(-1) ?? '';
+    if (!last || `${last} ${word}`.length > limit) lines.push(word);
+    else lines[lines.length - 1] = `${last} ${word}`;
+    return lines;
+  }, []);
+};
 
 const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
-  const lines = [
-    'Contractor Health Check V3',
-    `${leadProfile.company || 'Contractor'} Assessment Report`,
-    `Prepared for: ${leadProfile.name || 'Not provided'}`,
-    `Email: ${leadProfile.email || 'Not provided'}`,
-    `Trade: ${leadProfile.trade} | Team: ${leadProfile.teamSize} | Revenue: ${leadProfile.monthlyRevenue}/mo`,
-    '',
-    `Overall Score: ${results.overall}/100 - ${band.label}`,
-    band.description,
-    '',
-    'Category Scores',
-    ...results.categories.map(({ category, score }) => `${category}: ${score}% (peer baseline ${industryBenchmarks[category]}%)`),
-    '',
-    'Top Opportunities',
-    ...results.opportunities.map(({ category }) => `${category}: ${categoryRevenueLeaks[category]}`),
-    '',
-    '30-Day Recommended Next Steps',
-    ...categoryPlaybooks[results.opportunities[0]?.category ?? 'Systems'].map((step, index) => `${index + 1}. ${step}`),
-    '',
-    `Lead Message: ${leadProfile.message || 'Not provided'}`,
-  ];
-  const content = lines.map((line, index) => `BT /F1 ${index < 2 ? 18 : 10} Tf 54 ${760 - index * 22} Td (${escapePdfText(line)}) Tj ET`).join('\n');
+  const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
+  const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
+  const pages: string[][] = [];
+  const page = () => { const commands: string[] = []; pages.push(commands); return commands; };
+  const text = (commands: string[], value: string, x: number, y: number, size = 10, font = 'F1', color = '0.16 0.20 0.27') => {
+    commands.push(`${color} rg BT /${font} ${size} Tf ${x} ${y} Td (${pdfSafe(value)}) Tj ET`);
+  };
+  const line = (commands: string[], x1: number, y1: number, x2: number, y2: number, color = '0.85 0.87 0.90') => commands.push(`${color} RG 1 w ${x1} ${y1} m ${x2} ${y2} l S`);
+  const header = (commands: string[], section: string) => {
+    commands.push('0.04 0.07 0.12 rg 0 728 612 64 re f', '0.96 0.66 0.18 rg 42 745 12 12 re f');
+    text(commands, 'TRADEBUILT', 65, 746, 14, 'F2', '1 1 1');
+    text(commands, section.toUpperCase(), 430, 747, 8, 'F2', '0.74 0.78 0.84');
+    text(commands, `Prepared ${reportDate}`, 42, 26, 8, 'F1', '0.42 0.46 0.52');
+    text(commands, `TradeBuilt Business Health Report  |  ${pages.length}`, 390, 26, 8, 'F1', '0.42 0.46 0.52');
+  };
+
+  const overview = page();
+  header(overview, 'Business Health Report');
+  text(overview, 'CONTRACTOR GROWTH DIAGNOSTIC', 42, 681, 9, 'F2', '0.78 0.45 0.08');
+  wrapPdfText(`${leadProfile.company} Business Health Report`, 38).forEach((value, index) => text(overview, value, 42, 638 - index * 34, 27, 'F2', '0.04 0.07 0.12'));
+  text(overview, `Prepared for ${leadProfile.name}`, 42, 555, 12, 'F1', '0.35 0.39 0.45');
+  line(overview, 42, 528, 570, 528);
+  text(overview, `${results.overall}`, 42, 428, 74, 'F2', '0.04 0.07 0.12');
+  text(overview, '/100', 130, 438, 20, 'F2', '0.42 0.46 0.52');
+  text(overview, band.label, 42, 394, 22, 'F2', '0.78 0.45 0.08');
+  wrapPdfText(band.description, 62).forEach((value, index) => text(overview, value, 42, 364 - index * 16, 11));
+  text(overview, 'BUSINESS PROFILE', 42, 288, 9, 'F2', '0.42 0.46 0.52');
+  [[leadProfile.trade, 'Primary trade'], [leadProfile.teamSize, 'Team size'], [`${leadProfile.monthlyRevenue} / month`, 'Revenue range']].forEach(([value, label], index) => {
+    const x = 42 + index * 176;
+    text(overview, label.toUpperCase(), x, 253, 7, 'F2', '0.48 0.52 0.58');
+    text(overview, value, x, 231, 11, 'F2');
+  });
+  text(overview, 'CONSULTANT PRIORITY', 42, 174, 9, 'F2', '0.42 0.46 0.52');
+  text(overview, `Strengthen ${priorityCategory} first.`, 42, 145, 18, 'F2', '0.04 0.07 0.12');
+  wrapPdfText(categoryRevenueLeaks[priorityCategory], 76).forEach((value, index) => text(overview, value, 42, 120 - index * 15, 10));
+
+  const scorecard = page();
+  header(scorecard, 'Performance Scorecard');
+  text(scorecard, 'Business performance by operating area', 42, 680, 23, 'F2', '0.04 0.07 0.12');
+  text(scorecard, 'Scores are compared with the TradeBuilt contractor peer baseline.', 42, 654, 10);
+  results.categories.forEach(({ category, score }, index) => {
+    const y = 602 - index * 61;
+    const benchmark = industryBenchmarks[category];
+    text(scorecard, category, 42, y + 18, 11, 'F2');
+    text(scorecard, `${score}%`, 522, y + 18, 11, 'F2', score >= benchmark ? '0.10 0.55 0.42' : '0.78 0.45 0.08');
+    scorecard.push(`0.91 0.92 0.94 rg 42 ${y} 528 9 re f`, `0.96 0.66 0.18 rg 42 ${y} ${Math.max(4, 5.28 * score)} 9 re f`);
+    text(scorecard, `Peer baseline ${benchmark}%  |  ${score - benchmark >= 0 ? '+' : ''}${score - benchmark} point variance`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
+  });
+
+  const actionPlan = page();
+  header(actionPlan, 'Consultant Action Plan');
+  text(actionPlan, 'Your 30-day growth priorities', 42, 680, 23, 'F2', '0.04 0.07 0.12');
+  text(actionPlan, 'Focus the team on the few moves most likely to improve control, margin, and capacity.', 42, 654, 10);
+  let y = 604;
+  results.opportunities.forEach(({ category, score }, index) => {
+    text(actionPlan, `0${index + 1}`, 42, y, 12, 'F2', '0.78 0.45 0.08');
+    text(actionPlan, `${category}  |  ${score}%`, 80, y, 15, 'F2', '0.04 0.07 0.12');
+    wrapPdfText(categoryRevenueLeaks[category], 68).forEach((value, lineIndex) => text(actionPlan, value, 80, y - 25 - lineIndex * 14, 9));
+    y -= 112;
+  });
+  line(actionPlan, 42, 265, 570, 265);
+  text(actionPlan, `FIRST 30 DAYS: ${priorityCategory.toUpperCase()}`, 42, 229, 9, 'F2', '0.42 0.46 0.52');
+  categoryPlaybooks[priorityCategory].forEach((step, index) => {
+    text(actionPlan, `${index + 1}`, 42, 194 - index * 46, 12, 'F2', '0.78 0.45 0.08');
+    wrapPdfText(step, 72).forEach((value, lineIndex) => text(actionPlan, value, 72, 194 - index * 46 - lineIndex * 13, 10, 'F2'));
+  });
+
+  const fontObjectIds = { regular: 3 + pages.length * 2, bold: 4 + pages.length * 2 };
+  const pageObjectIds = pages.map((_, index) => 3 + index * 2);
   const objects = [
-    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
-    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
-    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
-    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-    `5 0 obj << /Length ${content.length} >> stream\n${content}\nendstream endobj`,
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`,
   ];
+  pages.forEach((commands, index) => {
+    const pageId = pageObjectIds[index];
+    const stream = commands.join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectIds.regular} 0 R /F2 ${fontObjectIds.bold} 0 R >> >> /Contents ${pageId + 1} 0 R >>`);
+    objects.push(`<< /Length ${stream.length} >> stream\n${stream}\nendstream`);
+  });
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
-  objects.forEach((object) => { offsets.push(pdf.length); pdf += `${object}\n`; });
+  objects.forEach((object, index) => { offsets.push(pdf.length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = pdf.length;
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
@@ -248,25 +321,25 @@ function LandingPage({ onStart }: { onStart: () => void }) {
       <section className="relative isolate px-5 py-6 sm:px-6 md:px-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_12%,rgba(251,191,36,.28),transparent_26%),radial-gradient(circle_at_88%_18%,rgba(56,189,248,.20),transparent_28%),linear-gradient(135deg,#020617,#111827_48%,#0f172a)]" />
         <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 rounded-full border border-white/10 bg-white/[.04] px-4 py-3 backdrop-blur md:px-5">
-          <div className="text-lg font-black tracking-tight sm:text-xl">
-            Contractor<span className="text-amber-300">Health</span>Check <span className="text-sky-300">V3</span>
+          <div className="text-lg font-black tracking-[0.02em] sm:text-xl">
+            Trade<span className="text-amber-300">Built</span>
           </div>
-          <span className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-slate-300 sm:text-sm">SaaS diagnostic + benchmark report</span>
+          <span className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-slate-300 sm:text-sm">Contractor Business Health Assessment</span>
         </nav>
 
         <div className="mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-10 py-12 md:py-16 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div className="max-w-4xl">
             <p className="mb-6 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-amber-200 ring-1 ring-white/15">
-              Lead capture • 25-question diagnostic • personalized action plan
+              Built for contractors ready to grow with control
             </p>
             <h1 className="max-w-5xl text-4xl font-black leading-[1.02] tracking-[-0.045em] sm:text-5xl md:text-7xl">
-              Turn every health check into a SaaS-ready contractor growth report.
+              Build a stronger, more profitable contracting business.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300 md:mt-7 md:text-xl">
-              Capture qualified leads, score their business, benchmark each category, and generate a 30-day playbook that points to your paid advisory or software offer.
+              See exactly where your business is strong, where profit and capacity are being lost, and what to improve over the next 30 days.
             </p>
             <div className="mt-8 grid gap-3 text-sm font-semibold text-slate-300 sm:grid-cols-3">
-              {['CRM-ready profile', 'Benchmark gaps', 'Premium report CTA'].map((item) => (
+              {['25 focused questions', 'Contractor benchmarks', 'Personalized action plan'].map((item) => (
                 <span className="rounded-2xl border border-white/10 bg-white/[.06] px-4 py-3" key={item}>✓ {item}</span>
               ))}
             </div>
@@ -275,9 +348,9 @@ function LandingPage({ onStart }: { onStart: () => void }) {
                 className="group rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-8 py-4 text-lg font-black text-slate-950 shadow-[0_20px_60px_rgba(245,158,11,.35)] ring-1 ring-amber-200/60 transition duration-200 hover:-translate-y-1 hover:scale-[1.01] hover:from-amber-200 hover:to-orange-400 hover:shadow-[0_24px_70px_rgba(245,158,11,.48)] focus:outline-none focus:ring-4 focus:ring-amber-300/50"
                 onClick={onStart}
               >
-                Start Assessment <span className="inline-block transition group-hover:translate-x-1">→</span>
+                Get My Business Health Score <span className="inline-block transition group-hover:translate-x-1">→</span>
               </button>
-              <span className="text-sm font-medium text-slate-400">Takes less than 5 minutes. Report unlock included.</span>
+              <span className="text-sm font-medium text-slate-400">Free • Takes about 5 minutes • Instant report</span>
             </div>
           </div>
           <ReportPreview />
@@ -304,9 +377,9 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
       <section className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[.85fr_1.15fr]">
         <div>
           <button className="mb-8 rounded-full border border-white/15 px-4 py-2 font-semibold text-slate-300 transition hover:bg-white/10" onClick={onBack}>← Back</button>
-          <p className="mb-4 inline-flex rounded-full bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-200 ring-1 ring-sky-300/20">V3 SaaS lead profile</p>
-          <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">Personalize the report before the score.</h1>
-          <p className="mt-5 text-lg leading-8 text-slate-300">The profile step turns the diagnostic into a qualified lead record and lets the results page speak to the contractor’s trade, size, and revenue stage.</p>
+          <p className="mb-4 inline-flex rounded-full bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-200 ring-1 ring-sky-300/20">Your business profile</p>
+          <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">Make this assessment specific to your business.</h1>
+          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">Tell us where the business stands today. We’ll tailor your scorecard and action plan to your trade, team, and current revenue stage.</p>
         </div>
         <form className="rounded-[2rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:p-8" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -318,11 +391,11 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
             <SelectField label="Team size" options={teamSizeOptions} value={profile.teamSize} onChange={(value) => updateProfile('teamSize', value)} />
             <SelectField label="Monthly revenue" options={monthlyRevenueOptions} value={profile.monthlyRevenue} onChange={(value) => updateProfile('monthlyRevenue', value)} />
           </div>
-          <TextAreaField label="Message" placeholder="What are you hoping this assessment helps you improve?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+          <TextAreaField label="Your top business priority (optional)" placeholder="For example: improve margins, build a stronger team, or create more consistent sales" value={profile.message} onChange={(value) => updateProfile('message', value)} />
           <button className="mt-6 w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-8 py-4 text-lg font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" type="submit">
-            Continue to Diagnostic
+            Start My Assessment
           </button>
-          <p className="mt-4 text-center text-xs leading-5 text-slate-400">Demo SaaS flow: no data is sent to a server in this static build.</p>
+          <p className="mt-4 text-center text-xs leading-5 text-slate-400">Your information is used to prepare and deliver your TradeBuilt report.</p>
         </form>
       </section>
     </main>
@@ -335,8 +408,8 @@ function ReportPreview() {
       <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-400/20 blur-2xl" />
       <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:p-7 md:rounded-[2rem]">
         <div className="mb-8 flex items-center justify-between gap-4 text-sm">
-          <span className="text-slate-400">V3 SaaS Report</span>
-          <span className="rounded-full bg-amber-300/10 px-3 py-1 font-bold text-amber-300 ring-1 ring-amber-300/20">Premium</span>
+          <span className="font-bold tracking-wide text-slate-300">TRADE<span className="text-amber-300">BUILT</span></span>
+          <span className="rounded-full bg-amber-300/10 px-3 py-1 font-bold text-amber-300 ring-1 ring-amber-300/20">Business scorecard</span>
         </div>
         <div className="text-6xl font-black tracking-tight sm:text-7xl">
           82<span className="text-3xl text-slate-400">/100</span>
@@ -353,16 +426,19 @@ function ReportPreview() {
   );
 }
 
-function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
+function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
+  const [isEmailSending, setIsEmailSending] = useState(false);
   const [strategyRequestNotice, setStrategyRequestNotice] = useState('');
 
   const emailReport = async () => {
-    setEmailNotice('Sending your report...');
+    if (isEmailSending) return;
+    setIsEmailSending(true);
+    setEmailNotice('Preparing and sending your report…');
 
     try {
       await sendReportEmail({
@@ -377,9 +453,11 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
           })),
         },
       });
-      setEmailNotice('Report sent. Check your inbox for the Contractor Health Check summary.');
+      setEmailNotice(`Your TradeBuilt report was sent to ${leadProfile.email}.`);
     } catch {
-      setEmailNotice('Unable to send the report right now. Please try again shortly.');
+      setEmailNotice('We couldn’t send your report. Please confirm your email and try again.');
+    } finally {
+      setIsEmailSending(false);
     }
   };
 
@@ -388,15 +466,15 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
       <section className="mx-auto max-w-6xl">
         <div className="mb-8 grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/[.05] p-5 text-sm text-slate-300 shadow-xl shadow-black/10 md:grid-cols-[1fr_auto] md:items-center md:p-6">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Lead profile</p>
-            <p className="mt-2 text-base leading-7"><strong className="text-xl text-white">{leadProfile.company || 'Demo Contractor'}</strong> • {leadProfile.name || 'Name not provided'} • {leadProfile.trade}</p>
-            <p className="leading-7">{leadProfile.email || 'Email not provided'} • {leadProfile.teamSize} • {leadProfile.monthlyRevenue}/mo</p>
-            {leadProfile.message && <p className="mt-2 max-w-3xl leading-6 text-slate-400">“{leadProfile.message}”</p>}
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Business profile</p>
+            <p className="mt-2 text-base leading-7"><strong className="text-xl text-white">{leadProfile.company}</strong> <span className="text-slate-500">•</span> {leadProfile.name} <span className="text-slate-500">•</span> {leadProfile.trade}</p>
+            <p className="leading-7">{leadProfile.teamSize} <span className="text-slate-500">•</span> {leadProfile.monthlyRevenue} monthly revenue</p>
+            {leadProfile.message && <p className="mt-2 max-w-3xl leading-6 text-slate-400"><span className="font-semibold text-slate-300">Current priority:</span> {leadProfile.message}</p>}
           </div>
-          <span className="justify-self-start rounded-full bg-sky-400/10 px-4 py-2 font-bold text-sky-200 ring-1 ring-sky-300/20 md:justify-self-end">Lead status: Report unlocked</span>
+          <span className="justify-self-start rounded-full bg-emerald-400/10 px-4 py-2 font-bold text-emerald-200 ring-1 ring-emerald-300/20 md:justify-self-end">Assessment complete</span>
         </div>
         <div className="rounded-[1.75rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:rounded-[2rem] md:p-12">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-200">Your Contractor Health Check V3</p>
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-200">TradeBuilt Business Health Report</p>
           <div className="mt-5 grid gap-8 lg:grid-cols-[.78fr_1.22fr]">
             <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/55 p-6">
               <div className="text-7xl font-black tracking-tight sm:text-8xl">
@@ -412,8 +490,8 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
                 <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
                   Download PDF Report
                 </button>
-                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20" onClick={emailReport}>
-                  Email My Report
+                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60" disabled={isEmailSending} onClick={emailReport}>
+                  {isEmailSending ? 'Sending Report…' : 'Email My Report'}
                 </button>
                 <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10 sm:col-span-2" onClick={onRestart}>
                   Retake Assessment
@@ -437,30 +515,31 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
         </div>
 
         <section className="mt-8 rounded-[1.5rem] border border-amber-300/20 bg-amber-300/10 p-6 shadow-xl shadow-amber-900/10 md:p-8">
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">SaaS conversion offer</p>
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">Your next stage of growth</p>
           <div className="mt-3 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
             <div>
-              <h2 className="text-3xl font-black">Unlock the 90-day Contractor Growth OS</h2>
-              <p className="mt-2 leading-7 text-slate-200">Turn this report into weekly scorecards, pipeline reviews, job-margin tracking, and automated client follow-up workflows.</p>
+              <h2 className="text-3xl font-black">Turn this scorecard into a 90-day growth plan.</h2>
+              <p className="mt-2 max-w-3xl leading-7 text-slate-200">Meet with a TradeBuilt growth advisor to identify the highest-leverage moves for stronger margins, a more dependable pipeline, and a business that runs with less owner dependency.</p>
             </div>
-            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-white/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request Strategy Session</button>
+            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-white/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request My Strategy Session</button>
           </div>
           {strategyRequestNotice && (
             <div className="mt-5 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-100" role="status">
               <p>{strategyRequestNotice}</p>
-              <p className="mt-2 text-xs font-medium text-emerald-100/75">Saved requests in this session: {strategySessionRequests.length}</p>
+              <p className="mt-2 text-xs font-medium text-emerald-100/75">A TradeBuilt advisor will follow up using the contact details provided.</p>
             </div>
           )}
         </section>
         {isStrategyModalOpen && <StrategySessionModal
           initialProfile={leadProfile}
           onCancel={() => setIsStrategyModalOpen(false)}
-          onSubmit={(request) => {
+          onSubmit={async (request) => {
+            await sendStrategySessionRequest({ ...request, assessmentScore: results.overall, priorityArea: nextCategory });
             onLeadUpdate({ ...leadProfile, ...request });
             onStrategyRequest({ ...request, submittedAt: new Date().toISOString() });
             setIsStrategyModalOpen(false);
             setEmailNotice('');
-            setStrategyRequestNotice(`Premium confirmation: strategy session request received for ${request.name || request.company || 'your company'}. Your details are saved in application state and ready for the upcoming inbox integration.`);
+            setStrategyRequestNotice(`Thank you, ${request.name}. Your strategy session request has been received.`);
           }}
         />}
       </section>
@@ -487,13 +566,23 @@ function TextAreaField({ label, onChange, placeholder, required = false, value }
   );
 }
 
-function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (request: StrategySessionRequest) => void }) {
+function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (request: StrategySessionRequest) => Promise<void> }) {
   const [profile, setProfile] = useState<LeadProfile>(initialProfile);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const updateProfile = (field: keyof LeadProfile, value: string) => setProfile((existingProfile) => ({ ...existingProfile, [field]: value }));
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(profile);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setSubmitError('');
+    try {
+      await onSubmit(profile);
+    } catch {
+      setSubmitError('We couldn’t send your request. Please check your details and try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -501,9 +590,9 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/15 bg-slate-950 p-6 text-white shadow-2xl shadow-black/50 md:p-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">In-app request</p>
-            <h3 className="mt-2 text-3xl font-black text-white" id="strategy-session-title">Request Strategy Session</h3>
-            <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused strategy review. No email service is connected yet.</p>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">TradeBuilt advisory</p>
+            <h3 className="mt-2 text-3xl font-black text-white" id="strategy-session-title">Request a Strategy Session</h3>
+            <p className="mt-2 leading-6 text-slate-300">Share the best contact details and the outcome you want most. A TradeBuilt advisor will review your scorecard before following up.</p>
           </div>
           <button aria-label="Cancel strategy session request" className="rounded-full border border-white/15 px-4 py-2 font-bold text-slate-200 transition hover:bg-white/10" onClick={onCancel} type="button">
             ×
@@ -516,13 +605,14 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
             <TextField label="Email *" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
             <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
           </div>
-          <TextAreaField label="Message" placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+          <TextAreaField label="What would make this session valuable?" placeholder="Tell us about the growth challenge or opportunity you want to solve first" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+          {submitError && <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-semibold text-rose-100" role="alert">{submitError}</p>}
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button className="rounded-full border border-white/15 px-7 py-4 font-black text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10" onClick={onCancel} type="button">
               Cancel
             </button>
-            <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" type="submit">
-              Send Request
+            <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60" disabled={isSubmitting} type="submit">
+              {isSubmitting ? 'Sending Request…' : 'Request My Session'}
             </button>
           </div>
         </form>
