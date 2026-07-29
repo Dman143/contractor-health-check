@@ -21,6 +21,34 @@ type ScoreBand = {
   description: string;
 };
 
+type GrowthPhase = {
+  number: 1 | 2 | 3 | 4;
+  name: string;
+  focus: string[];
+};
+
+const growthPhases: GrowthPhase[] = [
+  { number: 1, name: 'Stabilize', focus: ['Pricing', 'Cash Flow', 'Systems'] },
+  { number: 2, name: 'Grow', focus: ['Marketing', 'Sales', 'Customer Experience'] },
+  { number: 3, name: 'Scale', focus: ['Team', 'Operations', 'Leadership'] },
+  { number: 4, name: 'Freedom', focus: ['Dashboards', 'Automation', 'Profit optimization', 'Business valuation'] },
+];
+
+const tradeBuiltServices = [
+  { name: 'Contractor Health Check', description: 'A focused diagnostic that reveals the constraints, profit leaks, and highest-leverage priorities in your business.' },
+  { name: '90-Day Growth Program', description: 'An intensive implementation sprint that turns your priorities into a practical plan, measurable wins, and lasting momentum.' },
+  { name: 'Monthly Growth Advisory', description: 'Ongoing strategic guidance and accountability for owners navigating growth, decisions, and new levels of complexity.' },
+  { name: 'Systems & Automation', description: 'Purpose-built workflows and smart automation that reduce owner dependency, rework, and administrative drag.' },
+  { name: 'KPI Dashboard', description: 'A clear command center for the numbers that drive cash, margin, sales, operations, and confident decisions.' },
+];
+
+const getGrowthPhaseIndex = (score: number) => {
+  if (score >= 85) return 3;
+  if (score >= 70) return 2;
+  if (score >= 50) return 1;
+  return 0;
+};
+
 
 type EmailReportPayload = {
   leadProfile: LeadProfile;
@@ -212,6 +240,24 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
       if (weekIndex === 0) line(actionPlan, 42, top - 238, 570, top - 238);
     });
   });
+
+  const roadmap = page();
+  const currentPhaseIndex = getGrowthPhaseIndex(results.overall);
+  header(roadmap, 'Growth Roadmap');
+  text(roadmap, 'Your Growth Roadmap', 42, 680, 25, 'F2', '0.04 0.07 0.12');
+  text(roadmap, `CURRENT STAGE  |  PHASE ${currentPhaseIndex + 1} - ${growthPhases[currentPhaseIndex].name.toUpperCase()}`, 42, 647, 10, 'F2', '0.78 0.45 0.08');
+  wrapPdfText('Build in sequence: strengthen the current stage before adding the complexity of the next.', 80).forEach((value, index) => text(roadmap, value, 42, 624 - index * 14, 10));
+  growthPhases.forEach((phase, index) => {
+    const top = 550 - index * 113;
+    const isCurrent = index === currentPhaseIndex;
+    roadmap.push(`${isCurrent ? '0.99 0.94 0.82' : '0.95 0.96 0.97'} rg 42 ${top - 66} 528 86 re f`);
+    text(roadmap, `PHASE ${phase.number}`, 58, top, 8, 'F2', isCurrent ? '0.78 0.45 0.08' : '0.42 0.46 0.52');
+    text(roadmap, phase.name, 58, top - 24, 16, 'F2', '0.04 0.07 0.12');
+    text(roadmap, phase.focus.join('  |  '), 198, top - 22, 10, 'F1', '0.24 0.28 0.34');
+    if (isCurrent) text(roadmap, 'YOUR CURRENT PHASE', 438, top, 7, 'F2', '0.78 0.45 0.08');
+  });
+  text(roadmap, 'NEXT STEP', 42, 80, 8, 'F2', '0.42 0.46 0.52');
+  text(roadmap, 'Request a Strategy Session', 42, 55, 16, 'F2', '0.04 0.07 0.12');
 
   const fontObjectIds = { regular: 3 + pages.length * 2, bold: 4 + pages.length * 2 };
   const pageObjectIds = pages.map((_, index) => 3 + index * 2);
@@ -505,6 +551,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const actionPlan = createActionPlan(results);
   const benchmarkDelta = results.overall - results.industryAverage;
+  const currentGrowthPhaseIndex = getGrowthPhaseIndex(results.overall);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -644,14 +691,50 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
           </div>
         </section>
 
-        <section className="mt-8 rounded-[1.5rem] border border-amber-300/20 bg-amber-300/10 p-6 shadow-xl shadow-amber-900/10 md:p-8">
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">Your next stage of growth</p>
-          <div className="mt-3 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <h2 className="text-3xl font-black">Turn this scorecard into a 90-day growth plan.</h2>
-              <p className="mt-2 max-w-3xl leading-7 text-slate-200">Meet with a TradeBuilt growth advisor to identify the highest-leverage moves for stronger margins, a more dependable pipeline, and a business that runs with less owner dependency.</p>
+        <section className="relative mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(15,23,42,.98),rgba(30,41,59,.76))] p-6 shadow-2xl shadow-black/30 md:p-10">
+          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-sky-400/10 blur-3xl" />
+          <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
+          <div className="relative">
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-200">Built in the right sequence</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">Your Growth Roadmap</h2>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-300">Every enduring contracting business moves through the same essential stages. Your assessment places you in <strong className="text-white">Phase {currentGrowthPhaseIndex + 1} — {growthPhases[currentGrowthPhaseIndex].name}</strong>.</p>
+
+            <div className="mt-9 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {growthPhases.map((phase, index) => {
+                const isCurrent = index === currentGrowthPhaseIndex;
+                const isComplete = index < currentGrowthPhaseIndex;
+                return (
+                  <article className={`relative flex min-h-64 flex-col rounded-[1.5rem] border p-6 transition ${isCurrent ? 'border-amber-300/60 bg-amber-300/[.11] shadow-[0_18px_60px_rgba(245,158,11,.15)]' : 'border-white/10 bg-slate-950/55'}`} key={phase.number}>
+                    {isCurrent && <span className="absolute right-4 top-4 rounded-full bg-amber-300 px-3 py-1 text-[.65rem] font-black uppercase tracking-wider text-slate-950">Your phase</span>}
+                    <p className={`text-xs font-black uppercase tracking-[0.18em] ${isCurrent ? 'text-amber-200' : 'text-slate-500'}`}>Phase {phase.number}</p>
+                    <h3 className="mt-3 text-2xl font-black text-white">{phase.name}</h3>
+                    <ul className="mt-6 space-y-3">
+                      {phase.focus.map((item) => <li className="flex items-center gap-3 text-sm font-semibold text-slate-300" key={item}><span className={`h-1.5 w-1.5 rounded-full ${isCurrent ? 'bg-amber-300' : 'bg-slate-600'}`} />{item}</li>)}
+                    </ul>
+                    {isComplete && <p className="mt-auto pt-5 text-xs font-bold uppercase tracking-wider text-emerald-300">Foundation established</p>}
+                  </article>
+                );
+              })}
             </div>
-            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-white/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request My Strategy Session</button>
+
+            <div className="mt-14 border-t border-white/10 pt-10">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-sky-200">Strategic support, built for contractors</p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">TradeBuilt Services</h2>
+              <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+                {tradeBuiltServices.map((service, index) => (
+                  <article className={`rounded-[1.35rem] border border-white/10 bg-white/[.045] p-6 ${index < 2 ? 'lg:col-span-3' : 'lg:col-span-2'}`} key={service.name}>
+                    <p className="text-xs font-black tracking-[0.16em] text-amber-300">0{index + 1}</p>
+                    <h3 className="mt-3 text-xl font-black text-white">{service.name}</h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">{service.description}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10 rounded-[1.5rem] border border-amber-300/25 bg-amber-300/[.08] p-6 text-center md:p-9">
+              <p className="mx-auto max-w-2xl text-lg leading-8 text-slate-200">Ready to turn your current phase into a focused, executable plan?</p>
+              <button className="mt-5 rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-9 py-4 text-center text-lg font-black text-slate-950 shadow-[0_18px_50px_rgba(245,158,11,.25)] transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-amber-300/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request a Strategy Session</button>
+            </div>
           </div>
           {strategyRequestNotice && (
             <div className="mt-5 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-100" role="status">

@@ -25,9 +25,15 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Get My Business Health Score', 'Request My Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
+for (const requiredText of ['Get My Business Health Score', 'Request a Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
+  }
+}
+
+for (const roadmapText of ['Your Growth Roadmap', 'Stabilize', 'Grow', 'Scale', 'Freedom', 'Your phase', 'TradeBuilt Services', 'Contractor Health Check', '90-Day Growth Program', 'Monthly Growth Advisory', 'Systems & Automation', 'KPI Dashboard']) {
+  if (!appSource.includes(roadmapText)) {
+    throw new Error(`Missing growth roadmap content: ${roadmapText}.`);
   }
 }
 
