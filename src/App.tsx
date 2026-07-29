@@ -1,7 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import {
   categories,
-  categoryActionItems,
   categoryGradients,
   categoryRevenueLeaks,
   benchmarkMethodology,
@@ -12,7 +11,8 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
+import { createTradeActionPlan } from './actionPlan';
+import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -75,28 +75,12 @@ type EmailReportPayload = {
   leadProfile: LeadProfile;
   results: ResultsData;
   actionPlan: ActionPlanWeek[];
+  tradePlan: TradeActionPlan;
   completedAt: string;
   pdf: {
     base64: string;
     filename: string;
   };
-};
-
-const createActionPlan = (results: ResultsData): ActionPlanWeek[] => {
-  const weakest = results.opportunities.map(({ category }) => category);
-  const [primary = 'Systems', secondary = primary, tertiary = secondary] = weakest;
-
-  return [
-    { week: 1, title: `Diagnose and control ${primary}`, focusCategories: [primary], actions: categoryActionItems[primary].slice(0, 3) },
-    { week: 2, title: `Build the ${secondary} foundation`, focusCategories: [secondary], actions: categoryActionItems[secondary].slice(0, 3) },
-    { week: 3, title: `Strengthen ${tertiary}`, focusCategories: [tertiary], actions: categoryActionItems[tertiary].slice(0, 3) },
-    {
-      week: 4,
-      title: 'Lock in accountability and momentum',
-      focusCategories: [primary, secondary, tertiary],
-      actions: [categoryActionItems[primary][3], categoryActionItems[secondary][3], categoryActionItems[tertiary][3]],
-    },
-  ];
 };
 
 type StrategySessionPayload = StrategySessionRequest & {
@@ -188,7 +172,8 @@ const wrapPdfText = (value: string, limit = 82) => {
 const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
   const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
-  const plan = createActionPlan(results);
+  const tradePlan = createTradeActionPlan(leadProfile, results);
+  const plan = tradePlan.weeks;
   const pages: string[][] = [];
   const page = () => { const commands: string[] = []; pages.push(commands); return commands; };
   const text = (commands: string[], value: string, x: number, y: number, size = 10, font = 'F1', color = '0.16 0.20 0.27') => {
@@ -244,6 +229,17 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   });
   wrapPdfText(benchmarkMethodology, 94).forEach((value, index) => text(scorecard, value, 42, 76 - index * 12, 7, 'F1', '0.42 0.46 0.52'));
 
+  const planSummary = page();
+  header(planSummary, '30-Day TradeBuilt Action Plan');
+  text(planSummary, 'Your 30-Day TradeBuilt Action Plan', 42, 680, 23, 'F2', '0.04 0.07 0.12');
+  wrapPdfText(tradePlan.context, 88).forEach((value, index) => text(planSummary, value, 42, 650 - index * 14, 9));
+  text(planSummary, 'YOUR BIGGEST BOTTLENECK', 42, 590, 9, 'F2', '0.78 0.45 0.08');
+  wrapPdfText(tradePlan.bottleneck, 88).forEach((value, index) => text(planSummary, value, 42, 566 - index * 14, 9));
+  text(planSummary, 'TOP 3 PRIORITIES', 42, 485, 9, 'F2', '0.78 0.45 0.08');
+  tradePlan.priorities.forEach((priority, index) => wrapPdfText(`${index + 1}. ${priority}`, 84).forEach((value, lineIndex) => text(planSummary, value, 42, 460 - index * 55 - lineIndex * 13, 9)));
+  text(planSummary, '3 QUICK WINS UNDER 30 MINUTES', 42, 280, 9, 'F2', '0.78 0.45 0.08');
+  tradePlan.quickWins.forEach((win, index) => wrapPdfText(`${index + 1}. ${win}`, 84).forEach((value, lineIndex) => text(planSummary, value, 42, 255 - index * 55 - lineIndex * 13, 9)));
+
   [plan.slice(0, 2), plan.slice(2)].forEach((weeks, pageIndex) => {
     const actionPlan = page();
     header(actionPlan, '30-Day Action Plan');
@@ -261,6 +257,17 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
       if (weekIndex === 0) line(actionPlan, 42, top - 238, 570, top - 238);
     });
   });
+
+  const planOutcome = page();
+  header(planOutcome, '30-Day Plan Outcome');
+  text(planOutcome, 'Protect the business, then build momentum', 42, 680, 22, 'F2', '0.04 0.07 0.12');
+  text(planOutcome, 'BIGGEST BUSINESS RISK IF NOTHING CHANGES', 42, 628, 9, 'F2', '0.78 0.45 0.08');
+  wrapPdfText(tradePlan.risk, 86).forEach((value, index) => text(planOutcome, value, 42, 600 - index * 15, 10));
+  line(planOutcome, 42, 492, 570, 492);
+  text(planOutcome, 'ESTIMATED OUTCOME IF THIS PLAN IS COMPLETED', 42, 455, 9, 'F2', '0.10 0.55 0.42');
+  wrapPdfText(tradePlan.estimatedOutcome, 86).forEach((value, index) => text(planOutcome, value, 42, 425 - index * 15, 10));
+  text(planOutcome, 'DAY-30 OWNER REVIEW', 42, 270, 9, 'F2', '0.42 0.46 0.52');
+  ['Confirm each priority has one accountable owner.', 'Compare the three category scores and benchmark gaps with today’s baseline.', 'Keep the operating rhythm that worked; replace any step the field team did not use.'].forEach((item, index) => text(planOutcome, `${index + 1}. ${item}`, 42, 244 - index * 32, 9));
 
   const roadmap = page();
   const currentPhaseIndex = getGrowthPhaseIndex(results.overall);
@@ -588,7 +595,8 @@ function ReportPreview() {
 function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
-  const actionPlan = createActionPlan(results);
+  const tradePlan = createTradeActionPlan(leadProfile, results);
+  const actionPlan = tradePlan.weeks;
   const benchmarkDelta = results.overall - results.industryAverage;
   const currentGrowthPhaseIndex = getGrowthPhaseIndex(results.overall);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
@@ -610,6 +618,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
         leadProfile,
         pdf: { base64: await blobToBase64(blob), filename },
         actionPlan,
+        tradePlan,
         results: {
           ...results,
           opportunities: results.opportunities.map((opportunity) => ({
@@ -703,8 +712,12 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
           <div className="relative">
             <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-200">Personalized consulting roadmap</p>
             <div className="mt-3 max-w-3xl">
-              <h2 className="text-3xl font-black tracking-tight md:text-5xl">Your 30-Day Action Plan</h2>
-              <p className="mt-3 leading-7 text-slate-300">Prioritized around your three lowest scores: {results.opportunities.map(({ category, score }) => `${category} (${score}%)`).join(', ')}.</p>
+              <h2 className="text-3xl font-black tracking-tight md:text-5xl">Your 30-Day TradeBuilt Action Plan</h2>
+              <p className="mt-3 leading-7 text-slate-300">{tradePlan.context}</p>
+            </div>
+            <div className="mt-8 grid gap-5 lg:grid-cols-2">
+              <InsightCard title="Your biggest bottleneck" items={[tradePlan.bottleneck]} />
+              <InsightCard title="Top 3 priorities" items={tradePlan.priorities} />
             </div>
             <div className="mt-8 grid gap-5 lg:grid-cols-2">
               {actionPlan.map((week) => (
@@ -726,6 +739,11 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
                   </ol>
                 </article>
               ))}
+            </div>
+            <div className="mt-5 grid gap-5 lg:grid-cols-3">
+              <InsightCard title="3 quick wins under 30 minutes" items={tradePlan.quickWins} />
+              <InsightCard title="Biggest business risk if nothing changes" items={[tradePlan.risk]} />
+              <InsightCard title="Estimated outcome after 30 days" items={[tradePlan.estimatedOutcome]} />
             </div>
           </div>
         </section>

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const dataSource = readFileSync(new URL('../src/data.ts', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const actionPlanSource = readFileSync(new URL('../src/actionPlan.ts', import.meta.url), 'utf8');
 const requiredCategories = [
   'Pricing',
   'Sales',
@@ -25,7 +26,7 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Get My Business Health Score', 'Request a Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
+for (const requiredText of ['Get My Business Health Score', 'Request a Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day TradeBuilt Action Plan', 'Your biggest bottleneck', 'Top 3 priorities', '3 quick wins under 30 minutes', 'Biggest business risk if nothing changes', 'Estimated outcome after 30 days', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
   }
@@ -48,7 +49,7 @@ for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below 
 }
 
 for (const week of ['Week 1', 'Week 2', 'Week 3', 'Week 4']) {
-  if (!appSource.includes("week: " + week.split(' ')[1])) throw new Error(`Missing action plan section: ${week}.`);
+  if (!actionPlanSource.includes("week: " + week.split(' ')[1])) throw new Error(`Missing action plan section: ${week}.`);
 }
 
 const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');

@@ -52,6 +52,16 @@ export type ActionPlanWeek = {
   actions: string[];
 };
 
+export type TradeActionPlan = {
+  bottleneck: string;
+  priorities: string[];
+  weeks: ActionPlanWeek[];
+  quickWins: string[];
+  risk: string;
+  estimatedOutcome: string;
+  context: string;
+};
+
 export type StrategySessionRequest = Pick<LeadProfile, 'name' | 'company' | 'email' | 'phone' | 'message'> & {
   submittedAt?: string;
 };
