@@ -1,8 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react';
 import {
   categories,
+  categoryActionItems,
   categoryGradients,
-  categoryPlaybooks,
   categoryRevenueLeaks,
   industryBenchmarks,
   monthlyRevenueOptions,
@@ -11,7 +11,7 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import type { Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
+import type { ActionPlanWeek, Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -24,12 +24,29 @@ type ScoreBand = {
 type EmailReportPayload = {
   leadProfile: LeadProfile;
   results: ResultsData;
-  recommendedNextSteps: string[];
+  actionPlan: ActionPlanWeek[];
   completedAt: string;
   pdf: {
     base64: string;
     filename: string;
   };
+};
+
+const createActionPlan = (results: ResultsData): ActionPlanWeek[] => {
+  const weakest = results.opportunities.map(({ category }) => category);
+  const [primary = 'Systems', secondary = primary, tertiary = secondary] = weakest;
+
+  return [
+    { week: 1, title: `Diagnose and control ${primary}`, focusCategories: [primary], actions: categoryActionItems[primary].slice(0, 3) },
+    { week: 2, title: `Build the ${secondary} foundation`, focusCategories: [secondary], actions: categoryActionItems[secondary].slice(0, 3) },
+    { week: 3, title: `Strengthen ${tertiary}`, focusCategories: [tertiary], actions: categoryActionItems[tertiary].slice(0, 3) },
+    {
+      week: 4,
+      title: 'Lock in accountability and momentum',
+      focusCategories: [primary, secondary, tertiary],
+      actions: [categoryActionItems[primary][3], categoryActionItems[secondary][3], categoryActionItems[tertiary][3]],
+    },
+  ];
 };
 
 type StrategySessionPayload = StrategySessionRequest & {
@@ -99,6 +116,7 @@ const wrapPdfText = (value: string, limit = 82) => {
 const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
   const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
+  const plan = createActionPlan(results);
   const pages: string[][] = [];
   const page = () => { const commands: string[] = []; pages.push(commands); return commands; };
   const text = (commands: string[], value: string, x: number, y: number, size = 10, font = 'F1', color = '0.16 0.20 0.27') => {
@@ -146,22 +164,22 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
     text(scorecard, `Peer baseline ${benchmark}%  |  ${score - benchmark >= 0 ? '+' : ''}${score - benchmark} point variance`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
   });
 
-  const actionPlan = page();
-  header(actionPlan, 'Consultant Action Plan');
-  text(actionPlan, 'Your 30-day growth priorities', 42, 680, 23, 'F2', '0.04 0.07 0.12');
-  text(actionPlan, 'Focus the team on the few moves most likely to improve control, margin, and capacity.', 42, 654, 10);
-  let y = 604;
-  results.opportunities.forEach(({ category, score }, index) => {
-    text(actionPlan, `0${index + 1}`, 42, y, 12, 'F2', '0.78 0.45 0.08');
-    text(actionPlan, `${category}  |  ${score}%`, 80, y, 15, 'F2', '0.04 0.07 0.12');
-    wrapPdfText(categoryRevenueLeaks[category], 68).forEach((value, lineIndex) => text(actionPlan, value, 80, y - 25 - lineIndex * 14, 9));
-    y -= 112;
-  });
-  line(actionPlan, 42, 265, 570, 265);
-  text(actionPlan, `FIRST 30 DAYS: ${priorityCategory.toUpperCase()}`, 42, 229, 9, 'F2', '0.42 0.46 0.52');
-  categoryPlaybooks[priorityCategory].forEach((step, index) => {
-    text(actionPlan, `${index + 1}`, 42, 194 - index * 46, 12, 'F2', '0.78 0.45 0.08');
-    wrapPdfText(step, 72).forEach((value, lineIndex) => text(actionPlan, value, 72, 194 - index * 46 - lineIndex * 13, 10, 'F2'));
+  [plan.slice(0, 2), plan.slice(2)].forEach((weeks, pageIndex) => {
+    const actionPlan = page();
+    header(actionPlan, '30-Day Action Plan');
+    text(actionPlan, pageIndex === 0 ? 'Your personalized 30-day action plan' : 'Your personalized action plan, continued', 42, 680, 23, 'F2', '0.04 0.07 0.12');
+    text(actionPlan, `Built from your lowest scores: ${results.opportunities.map(({ category, score }) => `${category} ${score}%`).join('  |  ')}`, 42, 654, 9);
+    weeks.forEach((week, weekIndex) => {
+      const top = 606 - weekIndex * 270;
+      text(actionPlan, `WEEK ${week.week}`, 42, top, 9, 'F2', '0.78 0.45 0.08');
+      text(actionPlan, week.title, 42, top - 27, 17, 'F2', '0.04 0.07 0.12');
+      week.actions.forEach((step, index) => {
+        const itemY = top - 70 - index * 57;
+        text(actionPlan, `${index + 1}`, 42, itemY, 11, 'F2', '0.78 0.45 0.08');
+        wrapPdfText(step, 76).forEach((value, lineIndex) => text(actionPlan, value, 70, itemY - lineIndex * 13, 9));
+      });
+      if (weekIndex === 0) line(actionPlan, 42, top - 238, 570, top - 238);
+    });
   });
 
   const fontObjectIds = { regular: 3 + pages.length * 2, bold: 4 + pages.length * 2 };
@@ -446,6 +464,7 @@ function ReportPreview() {
 function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
+  const actionPlan = createActionPlan(results);
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
@@ -465,7 +484,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
         completedAt: new Date().toISOString(),
         leadProfile,
         pdf: { base64: await blobToBase64(blob), filename },
-        recommendedNextSteps: categoryPlaybooks[nextCategory],
+        actionPlan,
         results: {
           ...results,
           opportunities: results.opportunities.map((opportunity) => ({
@@ -540,8 +559,40 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           <InsightCard title="Top 3 Strengths" items={results.strengths.map((item) => `${item.category}: ${item.score}%`)} />
           <InsightCard title="Top 3 Opportunities" items={results.opportunities.map((item) => `${item.category}: ${categoryRevenueLeaks[item.category]}`)} />
-          <InsightCard title="Recommended Next Step" items={[`Prioritize ${nextCategory}. ${categoryPlaybooks[nextCategory][0]}`, ...categoryPlaybooks[nextCategory].slice(1)]} />
+          <InsightCard title="Primary Constraint" items={[`${nextCategory} scored ${results.opportunities[0]?.score ?? 0}%.`, categoryRevenueLeaks[nextCategory]]} />
         </div>
+
+        <section className="relative mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[.065] p-6 shadow-2xl shadow-black/25 md:p-10">
+          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
+          <div className="relative">
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-200">Personalized consulting roadmap</p>
+            <div className="mt-3 max-w-3xl">
+              <h2 className="text-3xl font-black tracking-tight md:text-5xl">Your 30-Day Action Plan</h2>
+              <p className="mt-3 leading-7 text-slate-300">Prioritized around your three lowest scores: {results.opportunities.map(({ category, score }) => `${category} (${score}%)`).join(', ')}.</p>
+            </div>
+            <div className="mt-8 grid gap-5 lg:grid-cols-2">
+              {actionPlan.map((week) => (
+                <article className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-6 shadow-xl shadow-black/15" key={week.week}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Week {week.week}</p>
+                      <h3 className="mt-2 text-xl font-black text-white">{week.title}</h3>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-bold text-slate-300">{week.focusCategories.join(' + ')}</span>
+                  </div>
+                  <ol className="mt-5 space-y-4">
+                    {week.actions.map((action, index) => (
+                      <li className="flex gap-3 leading-6 text-slate-300" key={action}>
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-300/15 text-xs font-black text-amber-200 ring-1 ring-amber-300/20">{index + 1}</span>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
 
         <section className="mt-8 rounded-[1.5rem] border border-amber-300/20 bg-amber-300/10 p-6 shadow-xl shadow-amber-900/10 md:p-8">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">Your next stage of growth</p>

@@ -25,10 +25,14 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Get My Business Health Score', 'Request My Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Recommended Next Step']) {
+for (const requiredText of ['Get My Business Health Score', 'Request My Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
   }
+}
+
+for (const week of ['Week 1', 'Week 2', 'Week 3', 'Week 4']) {
+  if (!appSource.includes("week: " + week.split(' ')[1])) throw new Error(`Missing action plan section: ${week}.`);
 }
 
 const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');
