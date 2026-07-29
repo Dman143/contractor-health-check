@@ -26,6 +26,10 @@ type EmailReportPayload = {
   results: ResultsData;
   recommendedNextSteps: string[];
   completedAt: string;
+  pdf: {
+    base64: string;
+    filename: string;
+  };
 };
 
 type StrategySessionPayload = StrategySessionRequest & {
@@ -92,7 +96,7 @@ const wrapPdfText = (value: string, limit = 82) => {
   }, []);
 };
 
-const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
+const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
   const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
   const pages: string[][] = [];
@@ -180,13 +184,26 @@ const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band:
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
   pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+  const filename = `${(leadProfile.company || 'contractor').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-health-check-report.pdf`;
+  return { blob: new Blob([pdf], { type: 'application/pdf' }), filename };
+};
+
+const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
+  const { blob, filename } = createPdfReport(leadProfile, results, band);
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${(leadProfile.company || 'contractor').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-health-check-report.pdf`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 };
+
+const blobToBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+  reader.onerror = () => reject(new Error('Unable to prepare the PDF report.'));
+  reader.readAsDataURL(blob);
+});
 
 const calculateResults = (answers: Record<number, number>): ResultsData => {
   const answeredTotal = questions.reduce((sum, question) => sum + (answers[question.id] ?? 0), 0);
@@ -432,18 +449,22 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [strategyRequestNotice, setStrategyRequestNotice] = useState('');
 
   const emailReport = async () => {
     if (isEmailSending) return;
     setIsEmailSending(true);
-    setEmailNotice('Preparing and sending your report…');
+    setEmailStatus('sending');
+    setEmailNotice('Preparing your report for secure delivery…');
 
     try {
+      const { blob, filename } = createPdfReport(leadProfile, results, band);
       await sendReportEmail({
         completedAt: new Date().toISOString(),
         leadProfile,
+        pdf: { base64: await blobToBase64(blob), filename },
         recommendedNextSteps: categoryPlaybooks[nextCategory],
         results: {
           ...results,
@@ -453,9 +474,11 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
           })),
         },
       });
-      setEmailNotice(`Your TradeBuilt report was sent to ${leadProfile.email}.`);
+      setEmailStatus('success');
+      setEmailNotice("Your report has been sent successfully. We'll review your assessment and get back to you shortly.");
     } catch {
-      setEmailNotice('We couldn’t send your report. Please confirm your email and try again.');
+      setEmailStatus('error');
+      setEmailNotice('We couldn’t send your report. Please check your connection and try again.');
     } finally {
       setIsEmailSending(false);
     }
@@ -490,14 +513,20 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
                 <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
                   Download PDF Report
                 </button>
-                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60" disabled={isEmailSending} onClick={emailReport}>
+                <button aria-busy={isEmailSending} className="flex items-center justify-center gap-2 rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60" disabled={isEmailSending} onClick={emailReport}>
+                  {isEmailSending && <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-sky-100/30 border-t-sky-100" />}
                   {isEmailSending ? 'Sending Report…' : 'Email My Report'}
                 </button>
                 <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10 sm:col-span-2" onClick={onRestart}>
                   Retake Assessment
                 </button>
               </div>
-              {emailNotice && <p className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-400/10 p-3 text-sm font-semibold text-sky-100">{emailNotice}</p>}
+              {emailNotice && (
+                <div className={`mt-4 rounded-2xl border p-4 text-sm font-semibold ${emailStatus === 'success' ? 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100' : emailStatus === 'error' ? 'border-rose-300/30 bg-rose-400/10 text-rose-100' : 'border-sky-300/20 bg-sky-400/10 text-sky-100'}`} role={emailStatus === 'error' ? 'alert' : 'status'}>
+                  <p>{emailNotice}</p>
+                  {emailStatus === 'error' && <button className="mt-3 rounded-full bg-white px-5 py-2 font-black text-slate-950 transition hover:bg-slate-100" onClick={emailReport}>Retry</button>}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

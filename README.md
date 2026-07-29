@@ -20,17 +20,18 @@ POST /api/email-report
 POST /api/strategy-session
 ```
 
-`/api/email-report` delivers the report to the contractor's submitted email address. If `REPORT_RECIPIENT_EMAIL` is configured, TradeBuilt receives a blind copy. `/api/strategy-session` delivers advisory requests to `REPORT_RECIPIENT_EMAIL` with the contractor's address set as the reply-to contact.
+`/api/email-report` delivers the complete lead assessment to `EMAIL_TO` and attaches the generated PDF. If `EMAIL_TO` is not set, delivery defaults to `contact@tradebuilt.pro`. The contractor's submitted address is used as the reply-to address. `/api/strategy-session` delivers advisory requests to `REPORT_RECIPIENT_EMAIL` with the contractor's address set as the reply-to contact.
 
 ### Required environment variables
 
 ```bash
 SMTP_USER=your-sending-address@gmail.com
 SMTP_PASS=your-app-password
-REPORT_RECIPIENT_EMAIL=your-advisory-inbox@gmail.com
+EMAIL_TO=contact@tradebuilt.pro
+REPORT_RECIPIENT_EMAIL=contact@tradebuilt.pro
 ```
 
-`REPORT_RECIPIENT_EMAIL` is required for strategy-session requests and optional if only report delivery is used. For Gmail, use an app password for `SMTP_PASS`.
+Only `SMTP_USER` and `SMTP_PASS` are required for report delivery. `EMAIL_TO` defaults to `contact@tradebuilt.pro`; set it to route lead reports elsewhere. `REPORT_RECIPIENT_EMAIL` is required only for strategy-session requests. For Gmail, use an app password for `SMTP_PASS`.
 
 ### Optional environment variables
 
