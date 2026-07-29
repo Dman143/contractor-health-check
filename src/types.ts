@@ -19,6 +19,15 @@ export type CategoryScore = {
   score: number;
 };
 
+export type LeadProfile = {
+  name: string;
+  company: string;
+  email: string;
+  trade: string;
+  teamSize: string;
+  monthlyRevenue: string;
+};
+
 export type ResultsData = {
   overall: number;
   categories: CategoryScore[];

@@ -51,3 +51,53 @@ export const categoryGradients: Record<Category, string> = {
   Operations: 'from-cyan-400 to-slate-500',
   'Customer Experience': 'from-fuchsia-400 to-indigo-500',
 };
+
+export const tradeOptions = [
+  'General Contractor',
+  'Remodeling',
+  'Roofing',
+  'HVAC',
+  'Plumbing',
+  'Electrical',
+  'Landscaping',
+  'Painting',
+  'Concrete / Masonry',
+  'Other Specialty Trade',
+];
+
+export const teamSizeOptions = ['Solo owner', '2–5 people', '6–10 people', '11–20 people', '21+ people'];
+
+export const monthlyRevenueOptions = ['Under $50k', '$50k–$100k', '$100k–$250k', '$250k–$500k', '$500k+'];
+
+export const industryBenchmarks: Record<Category, number> = {
+  Pricing: 72,
+  Sales: 68,
+  Marketing: 61,
+  'Cash Flow': 66,
+  Systems: 58,
+  Team: 63,
+  Operations: 70,
+  'Customer Experience': 74,
+};
+
+export const categoryRevenueLeaks: Record<Category, string> = {
+  Pricing: 'Margin is escaping through underpriced scopes, weak change-order discipline, or unprofitable job mix.',
+  Sales: 'Good leads may be cooling off because qualification, follow-up, and close steps are inconsistent.',
+  Marketing: 'The business is relying too heavily on referrals instead of measurable demand generation.',
+  'Cash Flow': 'Cash pressure may be hiding in payment terms, collections timing, or delayed financial review.',
+  Systems: 'Owner dependency and manual handoffs are creating rework, bottlenecks, and missed details.',
+  Team: 'Growth is limited by unclear ownership, inconsistent delegation, or informal training.',
+  Operations: 'Project execution is vulnerable to scope drift, schedule surprises, and late profitability tracking.',
+  'Customer Experience': 'Referral and review momentum may be leaking after project completion.',
+};
+
+export const categoryPlaybooks: Record<Category, string[]> = {
+  Pricing: ['Audit the last 10 completed jobs by gross margin.', 'Create a minimum-margin quoting rule for each job type.', 'Require written approval before any extra work starts.'],
+  Sales: ['Define your ideal-fit customer and disqualification rules.', 'Use one pipeline stage checklist from inquiry to signed agreement.', 'Schedule three follow-up touches before every estimate goes cold.'],
+  Marketing: ['Pick two measurable lead channels to improve this quarter.', 'Refresh project proof: photos, reviews, before/after stories.', 'Add a clear specialty promise to the website hero and estimate form.'],
+  'Cash Flow': ['Review cash, receivables, payables, and backlog every Monday.', 'Standardize deposits and progress billing by project type.', 'Flag every invoice older than seven days for owner review.'],
+  Systems: ['Document the estimate-to-handoff workflow in one page.', 'Remove one double-entry task from estimating or scheduling.', 'Create templates for scopes, selections, and client updates.'],
+  Team: ['Rewrite each role around outcomes, not tasks.', 'Choose one weekly scorecard metric per key seat.', 'Build a 30-day onboarding checklist for the next hire.'],
+  Operations: ['Launch every job with a scope, schedule, selections, and risk review.', 'Update schedule blockers twice per week.', 'Compare actual labor/material costs to estimate before job closeout.'],
+  'Customer Experience': ['Set communication expectations before production starts.', 'Use one punch-list and warranty intake process.', 'Ask for the review or referral within 48 hours of completion.'],
+};
