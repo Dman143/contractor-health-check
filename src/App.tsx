@@ -11,7 +11,6 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import { createTradeActionPlan } from './actionPlan';
 import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
@@ -86,6 +85,17 @@ type EmailReportPayload = {
 type StrategySessionPayload = StrategySessionRequest & {
   assessmentScore: number;
   priorityArea: Category;
+};
+
+const generateConsultingInsights = async (leadProfile: LeadProfile, results: ResultsData) => {
+  const response = await fetch('/api/consulting-insights', {
+    body: JSON.stringify({ leadProfile, results }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+
+  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to generate consulting insights.');
+  return (await response.json()).tradePlan as TradeActionPlan;
 };
 
 const sendReportEmail = async (payload: EmailReportPayload) => {
@@ -169,10 +179,9 @@ const wrapPdfText = (value: string, limit = 82) => {
   }, []);
 };
 
-const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
+const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
   const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
-  const tradePlan = createTradeActionPlan(leadProfile, results);
   const plan = tradePlan.weeks;
   const pages: string[][] = [];
   const page = () => { const commands: string[] = []; pages.push(commands); return commands; };
@@ -266,6 +275,8 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   line(planOutcome, 42, 492, 570, 492);
   text(planOutcome, 'ESTIMATED OUTCOME IF THIS PLAN IS COMPLETED', 42, 455, 9, 'F2', '0.10 0.55 0.42');
   wrapPdfText(tradePlan.estimatedOutcome, 86).forEach((value, index) => text(planOutcome, value, 42, 425 - index * 15, 10));
+  text(planOutcome, 'FINAL CONSULTANT RECOMMENDATION', 42, 335, 9, 'F2', '0.78 0.45 0.08');
+  wrapPdfText(tradePlan.finalRecommendation, 86).forEach((value, index) => text(planOutcome, value, 42, 307 - index * 15, 10));
   text(planOutcome, 'DAY-30 OWNER REVIEW', 42, 270, 9, 'F2', '0.42 0.46 0.52');
   ['Confirm each priority has one accountable owner.', 'Compare the three category scores and benchmark gaps with today’s baseline.', 'Keep the operating rhythm that worked; replace any step the field team did not use.'].forEach((item, index) => text(planOutcome, `${index + 1}. ${item}`, 42, 244 - index * 32, 9));
 
@@ -329,8 +340,8 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   return { blob: new Blob([pdf], { type: 'application/pdf' }), filename };
 };
 
-const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
-  const { blob, filename } = createPdfReport(leadProfile, results, band);
+const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
+  const { blob, filename } = createPdfReport(leadProfile, results, band, tradePlan);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -380,6 +391,8 @@ export default function App() {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [leadProfile, setLeadProfile] = useState<LeadProfile>(emptyLeadProfile);
   const [strategySessionRequests, setStrategySessionRequests] = useState<StrategySessionRequest[]>([]);
+  const [tradePlan, setTradePlan] = useState<TradeActionPlan | null>(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   const currentQuestion = questions[currentQuestionIndex];
   const results = useMemo(() => calculateResults(answers), [answers]);
@@ -391,17 +404,28 @@ export default function App() {
 
   const beginDiagnostic = (profile: LeadProfile) => {
     setLeadProfile(profile);
+    setTradePlan(null);
     setAnswers({});
     setCurrentQuestionIndex(0);
     setScreen('assessment');
   };
 
-  const selectScore = (score: number) => {
-    setAnswers((existingAnswers) => ({ ...existingAnswers, [currentQuestion.id]: score }));
+  const selectScore = async (score: number) => {
+    if (isGeneratingInsights) return;
+    const completedAnswers = { ...answers, [currentQuestion.id]: score };
+    setAnswers(completedAnswers);
+    if (currentQuestionIndex === questions.length - 1) setIsGeneratingInsights(true);
 
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       if (currentQuestionIndex === questions.length - 1) {
-        setScreen('results');
+        try {
+          setTradePlan(await generateConsultingInsights(leadProfile, calculateResults(completedAnswers)));
+          setScreen('results');
+        } catch {
+          window.alert('We couldn’t prepare your consulting report. Please try your final answer again.');
+        } finally {
+          setIsGeneratingInsights(false);
+        }
         return;
       }
 
@@ -426,11 +450,12 @@ export default function App() {
     return <LeadCapturePage initialProfile={leadProfile} onBack={() => setScreen('landing')} onSubmit={beginDiagnostic} />;
   }
 
-  if (screen === 'results') {
+  if (screen === 'results' && tradePlan) {
     return (
       <ResultsPage
         leadProfile={leadProfile}
         results={results}
+        tradePlan={tradePlan}
         strategySessionRequests={strategySessionRequests}
         onLeadUpdate={setLeadProfile}
         onRestart={startAssessment}
@@ -592,10 +617,9 @@ function ReportPreview() {
   );
 }
 
-function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
+function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; tradePlan: TradeActionPlan; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
-  const tradePlan = createTradeActionPlan(leadProfile, results);
   const actionPlan = tradePlan.weeks;
   const benchmarkDelta = results.overall - results.industryAverage;
   const currentGrowthPhaseIndex = getGrowthPhaseIndex(results.overall);
@@ -612,7 +636,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
     setEmailNotice('Preparing your report for secure delivery…');
 
     try {
-      const { blob, filename } = createPdfReport(leadProfile, results, band);
+      const { blob, filename } = createPdfReport(leadProfile, results, band, tradePlan);
       await sendReportEmail({
         completedAt: new Date().toISOString(),
         leadProfile,
@@ -664,7 +688,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
                 <p className="mt-3 text-sm leading-6 text-slate-300">{results.rankingExplanation}</p>
               </div>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
+                <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band, tradePlan)}>
                   Download PDF Report
                 </button>
                 <button aria-busy={isEmailSending} className="flex items-center justify-center gap-2 rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60" disabled={isEmailSending} onClick={emailReport}>

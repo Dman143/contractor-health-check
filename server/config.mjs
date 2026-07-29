@@ -7,6 +7,10 @@ export const brand = Object.freeze({
 
 export const getConfig = () => Object.freeze({
   port: Number(process.env.PORT ?? 4174),
+  openai: Object.freeze({
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
+  }),
   assessmentRecipientEmail: process.env.TRADEBUILT_RECIPIENT_EMAIL ?? brand.contactEmail,
   smtp: Object.freeze({
     host: process.env.SMTP_HOST ?? 'smtp.gmail.com',

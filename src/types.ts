@@ -53,6 +53,7 @@ export type ActionPlanWeek = {
 };
 
 export type TradeActionPlan = {
+  executiveSummary: string;
   bottleneck: string;
   priorities: string[];
   weeks: ActionPlanWeek[];
@@ -60,6 +61,7 @@ export type TradeActionPlan = {
   risk: string;
   estimatedOutcome: string;
   context: string;
+  finalRecommendation: string;
 };
 
 export type StrategySessionRequest = Pick<LeadProfile, 'name' | 'company' | 'email' | 'phone' | 'message'> & {
