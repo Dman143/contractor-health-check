@@ -7,7 +7,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "verify:content": "node scripts/verify-content.mjs"
+    "verify:content": "node scripts/verify-content.mjs",
+    "dev:server": "node server/index.mjs",
+    "start": "node server/index.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",
