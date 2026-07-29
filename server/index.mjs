@@ -27,7 +27,7 @@ const loadEnvFile = async () => {
 await loadEnvFile();
 
 const PORT = Number(process.env.PORT ?? 4174);
-const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const requiredEnv = ['SMTP_USER', 'SMTP_PASS'];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
@@ -76,7 +76,7 @@ const smtpCommand = async (socket, command, expectedCodes) => {
   return response;
 };
 
-const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc }) => {
+const sendSmtpEmail = async ({ subject, text, html, replyTo, to, attachment }) => {
   for (const key of requiredEnv) {
     if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
   }
@@ -86,8 +86,8 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc }) => {
   const secure = (process.env.SMTP_SECURE ?? 'true') !== 'false';
   const from = sanitizeHeader(process.env.REPORT_FROM_EMAIL ?? process.env.SMTP_USER);
   const recipient = sanitizeHeader(to);
-  const blindCopy = sanitizeHeader(bcc);
-  const boundary = `report-${Date.now().toString(36)}`;
+  const mixedBoundary = `mixed-${Date.now().toString(36)}`;
+  const alternativeBoundary = `content-${Date.now().toString(36)}`;
   const socket = secure ? tls.connect(port, host, { servername: host }) : net.connect(port, host);
 
   try {
@@ -98,7 +98,6 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc }) => {
     await smtpCommand(socket, Buffer.from(process.env.SMTP_PASS).toString('base64'), [235]);
     await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
     await smtpCommand(socket, `RCPT TO:<${recipient}>`, [250, 251]);
-    if (blindCopy && blindCopy !== recipient) await smtpCommand(socket, `RCPT TO:<${blindCopy}>`, [250, 251]);
     await smtpCommand(socket, 'DATA', [354]);
 
     const headers = [
@@ -107,9 +106,11 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc }) => {
       `Subject: ${sanitizeHeader(subject)}`,
       replyTo ? `Reply-To: ${sanitizeHeader(replyTo)}` : '',
       'MIME-Version: 1.0',
-      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
     ].filter(Boolean).join('\r\n');
-    const messageBody = `${headers}\r\n\r\n--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${text}\r\n\r\n--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${html}\r\n\r\n--${boundary}--`;
+    const alternativeContent = `--${mixedBoundary}\r\nContent-Type: multipart/alternative; boundary="${alternativeBoundary}"\r\n\r\n--${alternativeBoundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${text}\r\n\r\n--${alternativeBoundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${html}\r\n\r\n--${alternativeBoundary}--`;
+    const attachmentContent = attachment ? `\r\n\r\n--${mixedBoundary}\r\nContent-Type: application/pdf; name="${sanitizeHeader(attachment.filename).replace(/["\\]/g, '-')}"\r\nContent-Disposition: attachment; filename="${sanitizeHeader(attachment.filename).replace(/["\\]/g, '-')}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${attachment.base64.match(/.{1,76}/g)?.join('\r\n') ?? ''}` : '';
+    const messageBody = `${headers}\r\n\r\n${alternativeContent}${attachmentContent}\r\n--${mixedBoundary}--`;
     const message = `${messageBody.replace(/(^|\r\n)\./g, '$1..')}\r\n.`;
     await smtpCommand(socket, message, [250]);
     await smtpCommand(socket, 'QUIT', [221]);
@@ -137,15 +138,15 @@ const formatReportEmail = (payload) => {
     'TradeBuilt Business Health Report', '', `Date completed: ${completedDate}`, '', 'Business profile', ...leadLines, '', `Assessment score: ${results.overall}/100`, '', 'Category scores', ...results.categories.map(({ category, score }) => `${category}: ${score}%`), '', 'Top strengths', ...results.strengths.map(({ category, score }) => `${category}: ${score}%`), '', 'Top opportunities', ...opportunityLines, '', 'Recommended next steps', ...recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`),
   ];
   const section = (title, items) => `<div style="margin-top:28px"><h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h2><ul style="margin:0;padding-left:20px;color:#334155;line-height:1.7">${items.map((item) => `<li style="margin-bottom:8px">${escapeHtml(item)}</li>`).join('')}</ul></div>`;
-  const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">Your TradeBuilt scorecard and 30-day priorities are ready.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Your Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p></div>${section('Performance scorecard', results.categories.map(({ category, score }) => `${category}: ${score}%`))}${section('Strongest operating areas', results.strengths.map(({ category, score }) => `${category}: ${score}%`))}${section('Priority opportunities', opportunityLines)}${section('Your first 30 days', recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`))}<p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">Keep this report as a working scorecard. Revisit these priorities weekly and retake the assessment as your systems improve.</p></div></main></body></html>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">A new TradeBuilt assessment is ready for review.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p></div>${section('Contact and business profile', leadLines)}${section('Category scores', results.categories.map(({ category, score }) => `${category}: ${score}%`))}${section('Strengths', results.strengths.map(({ category, score }) => `${category}: ${score}%`))}${section('Opportunities', opportunityLines)}${section('Recommended next steps', recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`))}<p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">The complete PDF report is attached for review.</p></div></main></body></html>`;
 
-  return { subject: `Your TradeBuilt Business Health Report - ${subjectName}`, text: lines.join('\n'), html, to: leadProfile.email, bcc: process.env.REPORT_RECIPIENT_EMAIL };
+  return { subject: `TradeBuilt lead report - ${subjectName}`, text: lines.join('\n'), html, replyTo: leadProfile.email, to: process.env.EMAIL_TO ?? 'contact@tradebuilt.pro', attachment: payload.pdf };
 };
 
 const handleEmailReport = async (request, response) => {
   try {
     const payload = await readJsonBody(request);
-    if (!emailPattern.test(payload.leadProfile?.email ?? '') || !payload.results?.categories?.length) {
+    if (!emailPattern.test(payload.leadProfile?.email ?? '') || !payload.results?.categories?.length || !payload.pdf?.base64 || !payload.pdf?.filename) {
       jsonResponse(response, 400, { message: 'Lead profile and assessment results are required.' });
       return;
     }
