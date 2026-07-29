@@ -36,3 +36,7 @@ export type ResultsData = {
   strengths: CategoryScore[];
   opportunities: CategoryScore[];
 };
+
+export type StrategySessionRequest = Pick<LeadProfile, 'name' | 'company' | 'email' | 'phone' | 'message'> & {
+  submittedAt?: string;
+};

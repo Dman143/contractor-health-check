@@ -8,7 +8,7 @@ export const questions: Question[] = [
   { id: 5, category: 'Sales', prompt: 'We qualify prospects before investing time in estimates or site visits.' },
   { id: 6, category: 'Sales', prompt: 'Our follow-up process helps us close good-fit opportunities without chasing.' },
   { id: 7, category: 'Marketing', prompt: 'We generate consistent inbound leads from channels we can measure.' },
-  { id: 8, category: 'Marketing', prompt: 'Our website, reviews, and project photos clearly build trust before a call.' },
+  { id: 8, category: 'Marketing', prompt: 'Our website, reviews, and project photos clearly build trust before prospects contact us.' },
   { id: 9, category: 'Marketing', prompt: 'We communicate a clear specialty or advantage instead of looking like every other contractor.' },
   { id: 10, category: 'Cash Flow', prompt: 'We always know our cash position and near-term obligations.' },
   { id: 11, category: 'Cash Flow', prompt: 'Deposits, progress payments, and collections keep projects cash-positive.' },
