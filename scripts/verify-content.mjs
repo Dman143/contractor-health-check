@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const dataSource = readFileSync(new URL('../src/data.ts', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
-const actionPlanSource = readFileSync(new URL('../src/actionPlan.ts', import.meta.url), 'utf8');
+const serverSource = readFileSync(new URL('../server/index.mjs', import.meta.url), 'utf8');
 const requiredCategories = [
   'Pricing',
   'Sales',
@@ -48,9 +48,11 @@ for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below 
   if (!appSource.includes(`'${ranking}'`)) throw new Error(`Missing business ranking: ${ranking}.`);
 }
 
-for (const week of ['Week 1', 'Week 2', 'Week 3', 'Week 4']) {
-  if (!actionPlanSource.includes("week: " + week.split(' ')[1])) throw new Error(`Missing action plan section: ${week}.`);
+for (const generatedSection of ['executiveSummary', 'bottleneck', 'priorities', 'weeks', 'quickWins', 'risk', 'estimatedOutcome', 'finalRecommendation']) {
+  if (!serverSource.includes(generatedSection)) throw new Error(`Missing AI report section: ${generatedSection}.`);
 }
+
+if (!serverSource.includes('https://api.openai.com/v1/responses') || !serverSource.includes('OPENAI_API_KEY')) throw new Error('Missing server-side OpenAI integration.');
 
 const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');
 
