@@ -11,7 +11,7 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import type { Category, LeadProfile, ResultsData } from './types';
+import type { Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -120,6 +120,7 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [leadProfile, setLeadProfile] = useState<LeadProfile>(emptyLeadProfile);
+  const [strategySessionRequests, setStrategySessionRequests] = useState<StrategySessionRequest[]>([]);
 
   const currentQuestion = questions[currentQuestionIndex];
   const results = useMemo(() => calculateResults(answers), [answers]);
@@ -167,7 +168,16 @@ export default function App() {
   }
 
   if (screen === 'results') {
-    return <ResultsPage leadProfile={leadProfile} results={results} onLeadUpdate={setLeadProfile} onRestart={startAssessment} />;
+    return (
+      <ResultsPage
+        leadProfile={leadProfile}
+        results={results}
+        strategySessionRequests={strategySessionRequests}
+        onLeadUpdate={setLeadProfile}
+        onRestart={startAssessment}
+        onStrategyRequest={(request) => setStrategySessionRequests((requests) => [request, ...requests])}
+      />
+    );
   }
 
   return (
@@ -283,7 +293,7 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
             <TextField label="Your name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
             <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
             <TextField label="Work email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
-            <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+            <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
             <SelectField label="Primary trade" options={tradeOptions} value={profile.trade} onChange={(value) => updateProfile('trade', value)} />
             <SelectField label="Team size" options={teamSizeOptions} value={profile.teamSize} onChange={(value) => updateProfile('teamSize', value)} />
             <SelectField label="Monthly revenue" options={monthlyRevenueOptions} value={profile.monthlyRevenue} onChange={(value) => updateProfile('monthlyRevenue', value)} />
@@ -323,7 +333,7 @@ function ReportPreview() {
   );
 }
 
-function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart }: { leadProfile: LeadProfile; results: ResultsData; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void }) {
+function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
@@ -393,16 +403,22 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart }: { leadPr
             </div>
             <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-white/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request Strategy Session</button>
           </div>
-          {strategyRequestNotice && <p className="mt-5 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-100">{strategyRequestNotice}</p>}
+          {strategyRequestNotice && (
+            <div className="mt-5 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-100" role="status">
+              <p>{strategyRequestNotice}</p>
+              <p className="mt-2 text-xs font-medium text-emerald-100/75">Saved requests in this session: {strategySessionRequests.length}</p>
+            </div>
+          )}
         </section>
         {isStrategyModalOpen && <StrategySessionModal
           initialProfile={leadProfile}
           onCancel={() => setIsStrategyModalOpen(false)}
-          onSubmit={(profile) => {
-            onLeadUpdate(profile);
+          onSubmit={(request) => {
+            onLeadUpdate({ ...leadProfile, ...request });
+            onStrategyRequest({ ...request, submittedAt: new Date().toISOString() });
             setIsStrategyModalOpen(false);
             setEmailNotice('');
-            setStrategyRequestNotice(`Strategy session request received for ${profile.name || profile.company || 'your company'}. Your lead profile has been saved at the top of this results page.`);
+            setStrategyRequestNotice(`Strategy session request received for ${request.name || request.company || 'your company'}. Your details are saved in application state and ready for the upcoming inbox integration.`);
           }}
         />}
       </section>
@@ -429,7 +445,7 @@ function TextAreaField({ label, onChange, placeholder, required = false, value }
   );
 }
 
-function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (profile: LeadProfile) => void }) {
+function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (request: StrategySessionRequest) => void }) {
   const [profile, setProfile] = useState<LeadProfile>(initialProfile);
   const updateProfile = (field: keyof LeadProfile, value: string) => setProfile((existingProfile) => ({ ...existingProfile, [field]: value }));
 
@@ -445,7 +461,7 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">In-app request</p>
             <h3 className="mt-2 text-3xl font-black text-white" id="strategy-session-title">Request Strategy Session</h3>
-            <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused follow-up on this assessment. No email client will open.</p>
+            <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused strategy review. No email service is connected yet.</p>
           </div>
           <button aria-label="Cancel strategy session request" className="rounded-full border border-white/15 px-4 py-2 font-bold text-slate-200 transition hover:bg-white/10" onClick={onCancel} type="button">
             ×
@@ -456,7 +472,7 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
             <TextField label="Name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
             <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
             <TextField label="Email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
-            <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+            <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
           </div>
           <TextAreaField label="Message" required placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -464,7 +480,7 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
               Cancel
             </button>
             <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" type="submit">
-              Submit Request
+              Send Request
             </button>
           </div>
         </form>
