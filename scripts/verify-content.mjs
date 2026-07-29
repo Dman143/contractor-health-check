@@ -31,4 +31,22 @@ for (const requiredText of ['Start Assessment', 'Request Strategy Session', 'Top
   }
 }
 
+const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');
+
+if (appSource.includes(legacyStrategyCta)) {
+  throw new Error('Legacy strategy CTA text is still present.');
+}
+
+for (const requiredModalText of ['Name *', 'Company *', 'Email *', 'Phone (optional)', 'Message', 'Send Request']) {
+  if (!appSource.includes(requiredModalText)) {
+    throw new Error(`Missing strategy session modal text: ${requiredModalText}.`);
+  }
+}
+
+for (const requiredBehavior of ['setIsStrategyModalOpen(true)', 'setIsStrategyModalOpen(false)', 'setStrategySessionRequests', 'Premium confirmation']) {
+  if (!appSource.includes(requiredBehavior)) {
+    throw new Error(`Missing strategy session behavior: ${requiredBehavior}.`);
+  }
+}
+
 console.log('Contractor Health Check content smoke test passed.');
