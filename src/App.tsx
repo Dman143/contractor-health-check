@@ -20,6 +20,26 @@ type ScoreBand = {
   description: string;
 };
 
+
+type EmailReportPayload = {
+  leadProfile: LeadProfile;
+  results: ResultsData;
+  recommendedNextSteps: string[];
+  completedAt: string;
+};
+
+const sendReportEmail = async (payload: EmailReportPayload) => {
+  const response = await fetch('/api/email-report', {
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error('Unable to send report email.');
+  }
+};
+
 const emptyLeadProfile: LeadProfile = {
   name: '',
   company: '',
@@ -341,6 +361,28 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
   const [emailNotice, setEmailNotice] = useState('');
   const [strategyRequestNotice, setStrategyRequestNotice] = useState('');
 
+  const emailReport = async () => {
+    setEmailNotice('Sending your report...');
+
+    try {
+      await sendReportEmail({
+        completedAt: new Date().toISOString(),
+        leadProfile,
+        recommendedNextSteps: categoryPlaybooks[nextCategory],
+        results: {
+          ...results,
+          opportunities: results.opportunities.map((opportunity) => ({
+            ...opportunity,
+            description: categoryRevenueLeaks[opportunity.category],
+          })),
+        },
+      });
+      setEmailNotice('Report sent. Check your inbox for the Contractor Health Check summary.');
+    } catch {
+      setEmailNotice('Unable to send the report right now. Please try again shortly.');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-6 md:py-10">
       <section className="mx-auto max-w-6xl">
@@ -370,7 +412,7 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
                 <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
                   Download PDF Report
                 </button>
-                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20" onClick={() => setEmailNotice('Email integration is ready: this will send the branded report when connected to your email provider.')}>
+                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20" onClick={emailReport}>
                   Email My Report
                 </button>
                 <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10 sm:col-span-2" onClick={onRestart}>

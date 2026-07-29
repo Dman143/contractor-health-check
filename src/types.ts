@@ -17,6 +17,7 @@ export type Question = {
 export type CategoryScore = {
   category: Category;
   score: number;
+  description?: string;
 };
 
 export type LeadProfile = {
