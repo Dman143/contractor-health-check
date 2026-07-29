@@ -42,6 +42,27 @@ const tradeBuiltServices = [
   { name: 'KPI Dashboard', description: 'A clear command center for the numbers that drive cash, margin, sales, operations, and confident decisions.' },
 ];
 
+type DashboardMetric = {
+  label: string;
+  value: string;
+  trend?: string;
+  trendDirection?: 'up' | 'down' | 'neutral';
+  chart?: number[];
+};
+
+const dashboardMetrics: DashboardMetric[] = [
+  { label: 'Revenue This Month', value: '$184,750', trend: '↑ 12.4%', trendDirection: 'up', chart: [32, 45, 40, 58, 63, 72, 82] },
+  { label: 'Gross Profit %', value: '38.6%', trend: '↑ 2.1 pts', trendDirection: 'up', chart: [45, 44, 52, 54, 60, 65, 68] },
+  { label: 'Leads This Month', value: '47', trend: '↑ 8 vs last month', trendDirection: 'up', chart: [35, 50, 44, 62, 56, 70, 76] },
+  { label: 'Quotes Sent', value: '29', trend: '6 awaiting follow-up', trendDirection: 'neutral' },
+  { label: 'Quote Conversion %', value: '41.3%', trend: '↑ 4.7 pts', trendDirection: 'up', chart: [42, 48, 46, 55, 52, 61, 69] },
+  { label: 'Active Projects', value: '12', trend: 'On schedule', trendDirection: 'up' },
+  { label: 'Jobs Completed', value: '18', trend: '↑ 3 vs last month', trendDirection: 'up' },
+  { label: 'Outstanding Quotes', value: '$96,400', trend: '↓ 2 need action', trendDirection: 'down' },
+  { label: 'Cash Flow Health', value: 'Healthy', trend: '8.4 weeks runway', trendDirection: 'up', chart: [44, 48, 55, 53, 62, 68, 74] },
+  { label: 'Google Review Rating', value: '4.9 ★', trend: '126 reviews', trendDirection: 'up' },
+];
+
 const getGrowthPhaseIndex = (score: number) => {
   if (score >= 85) return 3;
   if (score >= 70) return 2;
@@ -258,6 +279,24 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   });
   text(roadmap, 'NEXT STEP', 42, 80, 8, 'F2', '0.42 0.46 0.52');
   text(roadmap, 'Request a Strategy Session', 42, 55, 16, 'F2', '0.04 0.07 0.12');
+
+  const dashboard = page();
+  header(dashboard, 'TradeBuilt Growth Preview');
+  dashboard.push('0.04 0.07 0.12 rg 28 62 556 642 re f');
+  text(dashboard, 'PREVIEW OF TRADEBUILT GROWTH', 48, 670, 8, 'F2', '0.96 0.66 0.18');
+  text(dashboard, 'Your TradeBuilt Dashboard', 48, 638, 23, 'F2', '1 1 1');
+  text(dashboard, 'One place to monitor the numbers that actually grow your contracting business.', 48, 615, 9, 'F1', '0.67 0.72 0.80');
+  dashboardMetrics.forEach((metric, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = 48 + column * 260;
+    const y = 555 - row * 94;
+    dashboard.push(`0.08 0.12 0.19 rg ${x} ${y - 56} 244 76 re f`, `0.18 0.23 0.31 RG .5 w ${x} ${y - 56} 244 76 re S`);
+    text(dashboard, metric.label.toUpperCase(), x + 14, y + 2, 7, 'F2', '0.55 0.61 0.70');
+    text(dashboard, metric.value, x + 14, y - 26, 17, 'F2', '1 1 1');
+    if (metric.trend) text(dashboard, metric.trend, x + 132, y - 24, 8, 'F2', metric.trendDirection === 'down' ? '0.96 0.66 0.18' : metric.trendDirection === 'neutral' ? '0.67 0.72 0.80' : '0.20 0.78 0.56');
+  });
+  text(dashboard, 'SAMPLE DATA  |  Your live dashboard updates as your business moves.', 48, 76, 8, 'F1', '0.55 0.61 0.70');
 
   const fontObjectIds = { regular: 3 + pages.length * 2, bold: 4 + pages.length * 2 };
   const pageObjectIds = pages.map((_, index) => 3 + index * 2);
@@ -717,6 +756,10 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
               })}
             </div>
 
+            <DashboardPreview
+              onStrategyRequest={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}
+            />
+
             <div className="mt-14 border-t border-white/10 pt-10">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-sky-200">Strategic support, built for contractors</p>
               <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">TradeBuilt Services</h2>
@@ -842,6 +885,65 @@ function SelectField({ label, onChange, options, value }: { label: string; onCha
         {options.map((option) => <option key={option}>{option}</option>)}
       </select>
     </label>
+  );
+}
+
+function MetricSparkline({ points }: { points: number[] }) {
+  const coordinates = points.map((point, index) => `${(index / (points.length - 1)) * 100},${42 - (point / 100) * 36}`).join(' ');
+
+  return (
+    <svg aria-hidden="true" className="h-11 w-24 overflow-visible" viewBox="0 0 100 42">
+      <defs>
+        <linearGradient id="sparkline-fill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#fbbf24" stopOpacity=".24" />
+          <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon fill="url(#sparkline-fill)" points={`0,42 ${coordinates} 100,42`} />
+      <polyline fill="none" points={coordinates} stroke="#fbbf24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function DashboardPreview({ onStrategyRequest }: { onStrategyRequest: () => void }) {
+  return (
+    <section className="relative mt-14 border-t border-white/10 pt-10" aria-labelledby="dashboard-preview-title">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-200">Preview of TradeBuilt Growth</p>
+          <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl" id="dashboard-preview-title">Your TradeBuilt Dashboard</h2>
+          <p className="mt-4 text-lg leading-8 text-slate-300">One place to monitor the numbers that actually grow your contracting business.</p>
+        </div>
+        <span className="w-fit rounded-full border border-white/10 bg-white/[.05] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Sample data</span>
+      </div>
+
+      <div className="mt-8 overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/80 shadow-[0_28px_80px_rgba(0,0,0,.32)]">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-white/[.035] px-5 py-4 md:px-7">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-300 font-black text-slate-950">T</span>
+            <div><p className="text-sm font-black">Business Overview</p><p className="text-xs text-slate-500">Updated just now</p></div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.7)]" />Live metrics preview</div>
+        </div>
+        <div className="grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-5">
+          {dashboardMetrics.map((metric) => (
+            <article className="min-h-44 bg-slate-950 p-5" key={metric.label}>
+              <p className="min-h-10 text-xs font-bold uppercase leading-5 tracking-[0.12em] text-slate-500">{metric.label}</p>
+              <div className="mt-3 flex items-end justify-between gap-2">
+                <p className="text-2xl font-black tracking-tight text-white">{metric.value}</p>
+                {metric.chart && <MetricSparkline points={metric.chart} />}
+              </div>
+              {metric.trend && <p className={`mt-4 text-xs font-bold ${metric.trendDirection === 'down' ? 'text-amber-300' : metric.trendDirection === 'neutral' ? 'text-slate-400' : 'text-emerald-300'}`}>{metric.trend}</p>}
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+        <a className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-8 py-4 text-center font-black text-slate-950 shadow-[0_16px_44px_rgba(245,158,11,.24)] transition hover:-translate-y-0.5" href="mailto:daniel@tradebuilt.pro?subject=Join%20TradeBuilt%20Growth">Join TradeBuilt Growth</a>
+        <button className="rounded-full border border-white/15 bg-white/[.04] px-8 py-4 font-black text-white transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[.08]" onClick={onStrategyRequest}>Request Strategy Session</button>
+      </div>
+    </section>
   );
 }
 

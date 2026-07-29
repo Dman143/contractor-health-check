@@ -37,6 +37,12 @@ for (const roadmapText of ['Your Growth Roadmap', 'Stabilize', 'Grow', 'Scale', 
   }
 }
 
+for (const dashboardText of ['Preview of TradeBuilt Growth', 'Your TradeBuilt Dashboard', 'Revenue This Month', 'Gross Profit %', 'Leads This Month', 'Quotes Sent', 'Quote Conversion %', 'Active Projects', 'Jobs Completed', 'Outstanding Quotes', 'Cash Flow Health', 'Google Review Rating', 'Join TradeBuilt Growth', 'Request Strategy Session']) {
+  if (!appSource.includes(dashboardText)) {
+    throw new Error(`Missing dashboard preview content: ${dashboardText}.`);
+  }
+}
+
 for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below Average', 'Bottom 25%']) {
   if (!appSource.includes(`'${ranking}'`)) throw new Error(`Missing business ranking: ${ranking}.`);
 }
