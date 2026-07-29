@@ -4,6 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import tls from 'node:tls';
 import { fileURLToPath } from 'node:url';
+import { brand, getConfig } from './config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -26,9 +27,8 @@ const loadEnvFile = async () => {
 
 await loadEnvFile();
 
-const PORT = Number(process.env.PORT ?? 4174);
+const config = getConfig();
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
-const requiredEnv = ['SMTP_USER', 'SMTP_PASS'];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const sanitizeHeader = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
@@ -77,14 +77,11 @@ const smtpCommand = async (socket, command, expectedCodes) => {
 };
 
 const sendSmtpEmail = async ({ subject, text, html, replyTo, to, attachment }) => {
-  for (const key of requiredEnv) {
-    if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
-  }
+  if (!config.smtp.username) throw new Error('Missing required environment variable: SMTP_USER');
+  if (!config.smtp.password) throw new Error('Missing required environment variable: SMTP_PASS');
 
-  const host = process.env.SMTP_HOST ?? 'smtp.gmail.com';
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const secure = (process.env.SMTP_SECURE ?? 'true') !== 'false';
-  const from = sanitizeHeader(process.env.REPORT_FROM_EMAIL ?? process.env.SMTP_USER);
+  const { host, port, secure } = config.smtp;
+  const from = sanitizeHeader(config.smtp.fromEmail);
   const recipient = sanitizeHeader(to);
   const mixedBoundary = `mixed-${Date.now().toString(36)}`;
   const alternativeBoundary = `content-${Date.now().toString(36)}`;
@@ -92,16 +89,16 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, attachment }) =
 
   try {
     await smtpRead(socket);
-    await smtpCommand(socket, `EHLO ${process.env.SMTP_EHLO_DOMAIN ?? 'contractor-health-check.local'}`, [250]);
+    await smtpCommand(socket, `EHLO ${config.smtp.ehloDomain}`, [250]);
     await smtpCommand(socket, 'AUTH LOGIN', [334]);
-    await smtpCommand(socket, Buffer.from(process.env.SMTP_USER).toString('base64'), [334]);
-    await smtpCommand(socket, Buffer.from(process.env.SMTP_PASS).toString('base64'), [235]);
+    await smtpCommand(socket, Buffer.from(config.smtp.username).toString('base64'), [334]);
+    await smtpCommand(socket, Buffer.from(config.smtp.password).toString('base64'), [235]);
     await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
     await smtpCommand(socket, `RCPT TO:<${recipient}>`, [250, 251]);
     await smtpCommand(socket, 'DATA', [354]);
 
     const headers = [
-      `From: TradeBuilt Growth <${from}>`,
+      `From: ${brand.emailSenderName} <${from}>`,
       `To: ${recipient}`,
       `Subject: ${sanitizeHeader(subject)}`,
       replyTo ? `Reply-To: ${sanitizeHeader(replyTo)}` : '',
@@ -140,7 +137,7 @@ const formatReportEmail = (payload) => {
   const section = (title, items) => `<div style="margin-top:28px"><h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h2><ul style="margin:0;padding-left:20px;color:#334155;line-height:1.7">${items.map((item) => `<li style="margin-bottom:8px">${escapeHtml(item)}</li>`).join('')}</ul></div>`;
   const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">A new TradeBuilt assessment is ready for review.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p></div>${section('Contact and business profile', leadLines)}${section('Category scores', results.categories.map(({ category, score }) => `${category}: ${score}%`))}${section('Strengths', results.strengths.map(({ category, score }) => `${category}: ${score}%`))}${section('Opportunities', opportunityLines)}${section('Recommended next steps', recommendedNextSteps.map((step, index) => `${index + 1}. ${step}`))}<p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">The complete PDF report is attached for review.</p></div></main></body></html>`;
 
-  return { subject: `TradeBuilt lead report - ${subjectName}`, text: lines.join('\n'), html, replyTo: leadProfile.email, to: process.env.EMAIL_TO ?? 'contact@tradebuilt.pro', attachment: payload.pdf };
+  return { subject: `TradeBuilt lead report - ${subjectName}`, text: lines.join('\n'), html, replyTo: leadProfile.email, to: config.assessmentRecipientEmail, attachment: payload.pdf };
 };
 
 const handleEmailReport = async (request, response) => {
@@ -165,11 +162,9 @@ const handleStrategySession = async (request, response) => {
       jsonResponse(response, 400, { message: 'Name, company, and a valid email are required.' });
       return;
     }
-    const advisorEmail = process.env.REPORT_RECIPIENT_EMAIL;
-    if (!advisorEmail) throw new Error('Missing required environment variable: REPORT_RECIPIENT_EMAIL');
     const details = [`Name: ${payload.name}`, `Company: ${payload.company}`, `Email: ${payload.email}`, `Phone: ${payload.phone || 'Not supplied'}`, `Assessment score: ${payload.assessmentScore}/100`, `Priority area: ${payload.priorityArea}`, `Business context: ${payload.message || 'Not supplied'}`];
     await sendSmtpEmail({
-      to: advisorEmail,
+      to: config.assessmentRecipientEmail,
       replyTo: payload.email,
       subject: `TradeBuilt strategy request - ${payload.company}`,
       text: ['A contractor has requested a TradeBuilt strategy session.', '', ...details].join('\n'),
@@ -205,6 +200,6 @@ createServer(async (request, response) => {
     return;
   }
   jsonResponse(response, 405, { message: 'Method not allowed.' });
-}).listen(PORT, () => {
-  console.log(`TradeBuilt server listening on http://localhost:${PORT}`);
+}).listen(config.port, () => {
+  console.log(`TradeBuilt server listening on http://localhost:${config.port}`);
 });
