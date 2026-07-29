@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   categories,
   categoryGradients,
@@ -69,6 +69,18 @@ const getGrowthPhaseIndex = (score: number) => {
   return 0;
 };
 
+const requestJson = async <T,>(url: string, payload: unknown, fallbackMessage: string): Promise<T> => {
+  const response = await fetch(url, {
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    signal: AbortSignal.timeout(65_000),
+  });
+  const body = await response.json().catch(() => null) as ({ message?: string } & T) | null;
+  if (!response.ok) throw new Error(body?.message || fallbackMessage);
+  return body as T;
+};
+
 
 type EmailReportPayload = {
   leadProfile: LeadProfile;
@@ -88,34 +100,16 @@ type StrategySessionPayload = StrategySessionRequest & {
 };
 
 const generateConsultingInsights = async (leadProfile: LeadProfile, results: ResultsData) => {
-  const response = await fetch('/api/consulting-insights', {
-    body: JSON.stringify({ leadProfile, results }),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-
-  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to generate consulting insights.');
-  return (await response.json()).tradePlan as TradeActionPlan;
+  const response = await requestJson<{ tradePlan: TradeActionPlan }>('/api/consulting-insights', { leadProfile, results }, 'Unable to generate consulting insights.');
+  return response.tradePlan;
 };
 
 const sendReportEmail = async (payload: EmailReportPayload) => {
-  const response = await fetch('/api/email-report', {
-    body: JSON.stringify(payload),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-
-  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to send report email.');
+  await requestJson('/api/email-report', payload, 'Unable to send report email.');
 };
 
 const sendStrategySessionRequest = async (payload: StrategySessionPayload) => {
-  const response = await fetch('/api/strategy-session', {
-    body: JSON.stringify(payload),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-
-  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Unable to send your request.');
+  await requestJson('/api/strategy-session', payload, 'Unable to send your request.');
 };
 
 const emptyLeadProfile: LeadProfile = {
@@ -393,6 +387,7 @@ export default function App() {
   const [strategySessionRequests, setStrategySessionRequests] = useState<StrategySessionRequest[]>([]);
   const [tradePlan, setTradePlan] = useState<TradeActionPlan | null>(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [assessmentError, setAssessmentError] = useState('');
 
   const currentQuestion = questions[currentQuestionIndex];
   const results = useMemo(() => calculateResults(answers), [answers]);
@@ -412,6 +407,7 @@ export default function App() {
 
   const selectScore = async (score: number) => {
     if (isGeneratingInsights) return;
+    setAssessmentError('');
     const completedAnswers = { ...answers, [currentQuestion.id]: score };
     setAnswers(completedAnswers);
     if (currentQuestionIndex === questions.length - 1) setIsGeneratingInsights(true);
@@ -421,8 +417,8 @@ export default function App() {
         try {
           setTradePlan(await generateConsultingInsights(leadProfile, calculateResults(completedAnswers)));
           setScreen('results');
-        } catch {
-          window.alert('We couldn’t prepare your consulting report. Please try your final answer again.');
+        } catch (error) {
+          setAssessmentError(error instanceof Error ? error.message : 'We couldn’t prepare your report. Please try again.');
         } finally {
           setIsGeneratingInsights(false);
         }
@@ -488,18 +484,22 @@ export default function App() {
             {currentQuestion.category}
           </p>
           <h1 className="text-3xl font-black leading-tight tracking-tight md:text-5xl">{currentQuestion.prompt}</h1>
+          {assessmentError && <p aria-live="assertive" className="mt-6 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-100" role="alert">{assessmentError} Your answers are saved; select an answer to retry.</p>}
           <div className="mt-8 grid gap-3 sm:grid-cols-2 md:mt-10 md:grid-cols-5">
             {scaleLabels.map((label, index) => (
               <button
                 className="group rounded-2xl border border-white/10 bg-slate-900/75 p-5 text-left shadow-lg shadow-black/15 transition duration-200 hover:-translate-y-1 hover:border-amber-300/60 hover:bg-white/10 hover:shadow-amber-500/10 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950"
                 key={label}
                 onClick={() => selectScore(index + 1)}
+                disabled={isGeneratingInsights}
+                aria-pressed={answers[currentQuestion.id] === index + 1}
               >
                 <span className="block text-3xl font-black text-white">{index + 1}</span>
                 <span className="mt-3 block text-sm font-medium leading-5 text-slate-300 group-hover:text-white">{label}</span>
               </button>
             ))}
           </div>
+          {isGeneratingInsights && <p aria-live="polite" className="mt-6 flex items-center gap-3 text-sm font-semibold text-slate-300"><span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-amber-200/25 border-t-amber-300" />Building your personalized report…</p>}
         </article>
       </section>
     </main>
@@ -560,7 +560,7 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(profile);
+    onSubmit(Object.fromEntries(Object.entries(profile).map(([key, value]) => [key, value.trim()])) as LeadProfile);
   };
 
   return (
@@ -574,10 +574,10 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
         </div>
         <form className="rounded-[2rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:p-8" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Your name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
-            <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
-            <TextField label="Work email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
-            <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+            <TextField autoComplete="name" label="Your name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
+            <TextField autoComplete="organization" label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
+            <TextField autoComplete="email" label="Work email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+            <TextField autoComplete="tel" label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
             <SelectField label="Primary trade" options={tradeOptions} value={profile.trade} onChange={(value) => updateProfile('trade', value)} />
             <SelectField label="Team size" options={teamSizeOptions} value={profile.teamSize} onChange={(value) => updateProfile('teamSize', value)} />
             <SelectField label="Monthly revenue" options={monthlyRevenueOptions} value={profile.monthlyRevenue} onChange={(value) => updateProfile('monthlyRevenue', value)} />
@@ -845,22 +845,24 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
   );
 }
 
-function TextField({ label, onChange, required = false, type = 'text', value }: { label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
+function TextField({ autoComplete, label, onChange, required = false, type = 'text', value }: { autoComplete?: string; label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
+  const id = useId();
   return (
-    <label className="block text-sm font-bold text-slate-200">
-      {label}
-      <input className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-amber-300" onChange={(event) => onChange(event.target.value)} required={required} type={type} value={value} />
-    </label>
+    <div className="block text-sm font-bold text-slate-200">
+      <label htmlFor={id}>{label}</label>
+      <input autoComplete={autoComplete} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-white outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" id={id} maxLength={type === 'email' ? 254 : 120} onChange={(event) => onChange(event.target.value)} required={required} type={type} value={value} />
+    </div>
   );
 }
 
 
 function TextAreaField({ label, onChange, placeholder, required = false, value }: { label: string; onChange: (value: string) => void; placeholder?: string; required?: boolean; value: string }) {
+  const id = useId();
   return (
-    <label className="mt-4 block text-sm font-bold text-slate-200">
-      {label}
-      <textarea className="mt-2 min-h-32 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} value={value} />
-    </label>
+    <div className="mt-4 block text-sm font-bold text-slate-200">
+      <label htmlFor={id}>{label}</label>
+      <textarea className="mt-2 min-h-32 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" id={id} maxLength={1000} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} value={value} />
+    </div>
   );
 }
 
@@ -868,6 +870,17 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
   const [profile, setProfile] = useState<LeadProfile>(initialProfile);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    modalRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !isSubmitting) onCancel(); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      previousFocus?.focus();
+    };
+  }, [isSubmitting, onCancel]);
   const updateProfile = (field: keyof LeadProfile, value: string) => setProfile((existingProfile) => ({ ...existingProfile, [field]: value }));
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -877,15 +890,15 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
     setSubmitError('');
     try {
       await onSubmit(profile);
-    } catch {
-      setSubmitError('We couldn’t send your request. Please check your details and try again.');
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'We couldn’t send your request. Please check your details and try again.');
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div aria-labelledby="strategy-session-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-5 py-6 backdrop-blur-sm" role="dialog">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/15 bg-slate-950 p-6 text-white shadow-2xl shadow-black/50 md:p-8">
+    <div aria-labelledby="strategy-session-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-4 backdrop-blur-sm sm:px-5 sm:py-6" role="dialog">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-white/15 bg-slate-950 p-5 text-white shadow-2xl shadow-black/50 sm:rounded-[2rem] md:p-8" ref={modalRef} tabIndex={-1}>
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">TradeBuilt advisory</p>
@@ -898,10 +911,10 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
         </div>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Name *" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
-            <TextField label="Company *" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
-            <TextField label="Email *" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
-            <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+            <TextField autoComplete="name" label="Name *" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
+            <TextField autoComplete="organization" label="Company *" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
+            <TextField autoComplete="email" label="Email *" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+            <TextField autoComplete="tel" label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
           </div>
           <TextAreaField label="What would make this session valuable?" placeholder="Tell us about the growth challenge or opportunity you want to solve first" value={profile.message} onChange={(value) => updateProfile('message', value)} />
           {submitError && <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-semibold text-rose-100" role="alert">{submitError}</p>}
