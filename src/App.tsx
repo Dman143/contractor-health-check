@@ -55,7 +55,7 @@ const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band:
     'Contractor Health Check V3',
     `${leadProfile.company || 'Contractor'} Assessment Report`,
     `Prepared for: ${leadProfile.name || 'Not provided'}`,
-    `Email: ${leadProfile.email || 'Not provided'} | Phone: ${leadProfile.phone || 'Not provided'}`,
+    `Email: ${leadProfile.email || 'Not provided'}`,
     `Trade: ${leadProfile.trade} | Team: ${leadProfile.teamSize} | Revenue: ${leadProfile.monthlyRevenue}/mo`,
     '',
     `Overall Score: ${results.overall}/100 - ${band.label}`,
@@ -348,7 +348,7 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Lead profile</p>
             <p className="mt-2 text-base leading-7"><strong className="text-xl text-white">{leadProfile.company || 'Demo Contractor'}</strong> • {leadProfile.name || 'Name not provided'} • {leadProfile.trade}</p>
-            <p className="leading-7">{leadProfile.email || 'Email not provided'} • {leadProfile.phone || 'Phone not provided'} • {leadProfile.teamSize} • {leadProfile.monthlyRevenue}/mo</p>
+            <p className="leading-7">{leadProfile.email || 'Email not provided'} • {leadProfile.teamSize} • {leadProfile.monthlyRevenue}/mo</p>
             {leadProfile.message && <p className="mt-2 max-w-3xl leading-6 text-slate-400">“{leadProfile.message}”</p>}
           </div>
           <span className="justify-self-start rounded-full bg-sky-400/10 px-4 py-2 font-bold text-sky-200 ring-1 ring-sky-300/20 md:justify-self-end">Lead status: Report unlocked</span>
@@ -418,7 +418,7 @@ function ResultsPage({ leadProfile, results, strategySessionRequests, onLeadUpda
             onStrategyRequest({ ...request, submittedAt: new Date().toISOString() });
             setIsStrategyModalOpen(false);
             setEmailNotice('');
-            setStrategyRequestNotice(`Strategy session request received for ${request.name || request.company || 'your company'}. Your details are saved in application state and ready for the upcoming inbox integration.`);
+            setStrategyRequestNotice(`Premium confirmation: strategy session request received for ${request.name || request.company || 'your company'}. Your details are saved in application state and ready for the upcoming inbox integration.`);
           }}
         />}
       </section>
@@ -469,12 +469,12 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
         </div>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
-            <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
-            <TextField label="Email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+            <TextField label="Name *" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
+            <TextField label="Company *" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
+            <TextField label="Email *" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
             <TextField label="Phone (optional)" type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
           </div>
-          <TextAreaField label="Message" required placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+          <TextAreaField label="Message" placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button className="rounded-full border border-white/15 px-7 py-4 font-black text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10" onClick={onCancel} type="button">
               Cancel
