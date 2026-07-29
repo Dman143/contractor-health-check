@@ -24,6 +24,8 @@ const emptyLeadProfile: LeadProfile = {
   name: '',
   company: '',
   email: '',
+  phone: '',
+  message: '',
   trade: tradeOptions[0],
   teamSize: teamSizeOptions[1],
   monthlyRevenue: monthlyRevenueOptions[1],
@@ -43,6 +45,54 @@ const getScoreBand = (score: number): ScoreBand => {
   }
 
   return { label: 'Stabilize First', description: 'Focus on cash, delivery, and sales control before adding more volume or complexity.' };
+};
+
+
+const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+
+const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand) => {
+  const lines = [
+    'Contractor Health Check V3',
+    `${leadProfile.company || 'Contractor'} Assessment Report`,
+    `Prepared for: ${leadProfile.name || 'Not provided'}`,
+    `Email: ${leadProfile.email || 'Not provided'} | Phone: ${leadProfile.phone || 'Not provided'}`,
+    `Trade: ${leadProfile.trade} | Team: ${leadProfile.teamSize} | Revenue: ${leadProfile.monthlyRevenue}/mo`,
+    '',
+    `Overall Score: ${results.overall}/100 - ${band.label}`,
+    band.description,
+    '',
+    'Category Scores',
+    ...results.categories.map(({ category, score }) => `${category}: ${score}% (peer baseline ${industryBenchmarks[category]}%)`),
+    '',
+    'Top Opportunities',
+    ...results.opportunities.map(({ category }) => `${category}: ${categoryRevenueLeaks[category]}`),
+    '',
+    '30-Day Recommended Next Steps',
+    ...categoryPlaybooks[results.opportunities[0]?.category ?? 'Systems'].map((step, index) => `${index + 1}. ${step}`),
+    '',
+    `Lead Message: ${leadProfile.message || 'Not provided'}`,
+  ];
+  const content = lines.map((line, index) => `BT /F1 ${index < 2 ? 18 : 10} Tf 54 ${760 - index * 22} Td (${escapePdfText(line)}) Tj ET`).join('\n');
+  const objects = [
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
+    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+    `5 0 obj << /Length ${content.length} >> stream\n${content}\nendstream endobj`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object) => { offsets.push(pdf.length); pdf += `${object}\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${(leadProfile.company || 'contractor').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-health-check-report.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
 };
 
 const calculateResults = (answers: Record<number, number>): ResultsData => {
@@ -117,7 +167,7 @@ export default function App() {
   }
 
   if (screen === 'results') {
-    return <ResultsPage leadProfile={leadProfile} results={results} onRestart={startAssessment} />;
+    return <ResultsPage leadProfile={leadProfile} results={results} onLeadUpdate={setLeadProfile} onRestart={startAssessment} />;
   }
 
   return (
@@ -233,10 +283,12 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
             <TextField label="Your name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
             <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
             <TextField label="Work email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+            <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
             <SelectField label="Primary trade" options={tradeOptions} value={profile.trade} onChange={(value) => updateProfile('trade', value)} />
             <SelectField label="Team size" options={teamSizeOptions} value={profile.teamSize} onChange={(value) => updateProfile('teamSize', value)} />
             <SelectField label="Monthly revenue" options={monthlyRevenueOptions} value={profile.monthlyRevenue} onChange={(value) => updateProfile('monthlyRevenue', value)} />
           </div>
+          <TextAreaField label="Message" placeholder="What are you hoping this assessment helps you improve?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
           <button className="mt-6 w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-8 py-4 text-lg font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" type="submit">
             Continue to Diagnostic
           </button>
@@ -271,18 +323,24 @@ function ReportPreview() {
   );
 }
 
-function ResultsPage({ leadProfile, results, onRestart }: { leadProfile: LeadProfile; results: ResultsData; onRestart: () => void }) {
+function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart }: { leadProfile: LeadProfile; results: ResultsData; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void }) {
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
-  const mailtoHref = `mailto:${leadProfile.email || 'hello@tradebuilt.example'}?subject=${encodeURIComponent('Your Contractor Health Check V3 Report')}`;
+  const [isStrategyFormOpen, setIsStrategyFormOpen] = useState(false);
+  const [emailNotice, setEmailNotice] = useState('');
 
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-6 md:py-10">
       <section className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[.05] p-4 text-sm text-slate-300">
-          <span><strong className="text-white">{leadProfile.company || 'Demo Contractor'}</strong> • {leadProfile.trade} • {leadProfile.teamSize} • {leadProfile.monthlyRevenue}/mo</span>
-          <span className="rounded-full bg-sky-400/10 px-3 py-1 font-bold text-sky-200 ring-1 ring-sky-300/20">Lead status: Report unlocked</span>
+        <div className="mb-8 grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/[.05] p-5 text-sm text-slate-300 shadow-xl shadow-black/10 md:grid-cols-[1fr_auto] md:items-center md:p-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Lead profile</p>
+            <p className="mt-2 text-base leading-7"><strong className="text-xl text-white">{leadProfile.company || 'Demo Contractor'}</strong> • {leadProfile.name || 'Name not provided'} • {leadProfile.trade}</p>
+            <p className="leading-7">{leadProfile.email || 'Email not provided'} • {leadProfile.phone || 'Phone not provided'} • {leadProfile.teamSize} • {leadProfile.monthlyRevenue}/mo</p>
+            {leadProfile.message && <p className="mt-2 max-w-3xl leading-6 text-slate-400">“{leadProfile.message}”</p>}
+          </div>
+          <span className="justify-self-start rounded-full bg-sky-400/10 px-4 py-2 font-bold text-sky-200 ring-1 ring-sky-300/20 md:justify-self-end">Lead status: Report unlocked</span>
         </div>
         <div className="rounded-[1.75rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:rounded-[2rem] md:p-12">
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-200">Your Contractor Health Check V3</p>
@@ -297,14 +355,18 @@ function ResultsPage({ leadProfile, results, onRestart }: { leadProfile: LeadPro
                 <p className="text-sm font-bold uppercase tracking-[0.16em] text-slate-400">Benchmark delta</p>
                 <p className="mt-2 text-2xl font-black text-white">{benchmarkDelta >= 0 ? '+' : ''}{benchmarkDelta} points vs peer baseline</p>
               </div>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a className="inline-flex justify-center rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" href={mailtoHref}>
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
+                  Download PDF Report
+                </button>
+                <button className="rounded-full border border-sky-300/40 bg-sky-400/10 px-6 py-4 font-black text-sky-100 transition hover:-translate-y-0.5 hover:bg-sky-400/20" onClick={() => setEmailNotice('Email integration is ready: this will send the branded report when connected to your email provider.')}>
                   Email My Report
-                </a>
-                <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10" onClick={onRestart}>
-                  Retake
+                </button>
+                <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10 sm:col-span-2" onClick={onRestart}>
+                  Retake Assessment
                 </button>
               </div>
+              {emailNotice && <p className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-400/10 p-3 text-sm font-semibold text-sky-100">{emailNotice}</p>}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -328,8 +390,9 @@ function ResultsPage({ leadProfile, results, onRestart }: { leadProfile: LeadPro
               <h2 className="text-3xl font-black">Unlock the 90-day Contractor Growth OS</h2>
               <p className="mt-2 leading-7 text-slate-200">Turn this report into weekly scorecards, pipeline reviews, job-margin tracking, and automated client follow-up workflows.</p>
             </div>
-            <a className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5" href="mailto:hello@tradebuilt.example?subject=Growth%20OS%20Demo">Book a Strategy Call</a>
+            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5" onClick={() => setIsStrategyFormOpen((isOpen) => !isOpen)}>Request Strategy Session</button>
           </div>
+          {isStrategyFormOpen && <StrategySessionForm initialProfile={leadProfile} onSubmit={(profile) => { onLeadUpdate(profile); setIsStrategyFormOpen(false); }} />}
         </section>
       </section>
     </main>
@@ -342,6 +405,45 @@ function TextField({ label, onChange, required = false, type = 'text', value }: 
       {label}
       <input className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-amber-300" onChange={(event) => onChange(event.target.value)} required={required} type={type} value={value} />
     </label>
+  );
+}
+
+
+function TextAreaField({ label, onChange, placeholder, required = false, value }: { label: string; onChange: (value: string) => void; placeholder?: string; required?: boolean; value: string }) {
+  return (
+    <label className="mt-4 block text-sm font-bold text-slate-200">
+      {label}
+      <textarea className="mt-2 min-h-32 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} value={value} />
+    </label>
+  );
+}
+
+function StrategySessionForm({ initialProfile, onSubmit }: { initialProfile: LeadProfile; onSubmit: (profile: LeadProfile) => void }) {
+  const [profile, setProfile] = useState<LeadProfile>(initialProfile);
+  const updateProfile = (field: keyof LeadProfile, value: string) => setProfile((existingProfile) => ({ ...existingProfile, [field]: value }));
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSubmit(profile);
+  };
+
+  return (
+    <form className="mt-6 rounded-[1.5rem] border border-white/15 bg-slate-950/65 p-5 shadow-2xl shadow-black/20 md:p-6" onSubmit={handleSubmit}>
+      <div className="mb-5">
+        <h3 className="text-2xl font-black text-white">Request Strategy Session</h3>
+        <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused follow-up on this assessment.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField label="Name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
+        <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
+        <TextField label="Email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+        <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+      </div>
+      <TextAreaField label="Message" required placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+      <button className="mt-5 w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5 sm:w-auto" type="submit">
+        Save Request
+      </button>
+    </form>
   );
 }
 

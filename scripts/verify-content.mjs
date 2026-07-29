@@ -25,7 +25,7 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Start Assessment', 'Book a Strategy Call', 'Top 3 Strengths', 'Top 3 Opportunities', 'Recommended Next Step']) {
+for (const requiredText of ['Start Assessment', 'Request Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Recommended Next Step']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
   }
