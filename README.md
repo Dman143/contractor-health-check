@@ -52,13 +52,9 @@ npm install
 npm run dev
 ```
 
-In another terminal, start the API and static server:
-
-```bash
-npm run dev:server
-```
-
-Vite proxies `/api` requests to the server on port 4174.
+The development command starts both Vite and the API server. Vite proxies `/api`
+requests to the server on port 4174. Use `npm run dev:frontend` only when the API
+is deliberately being run separately.
 
 ## Production
 
