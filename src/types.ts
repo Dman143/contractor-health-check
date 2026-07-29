@@ -38,6 +38,13 @@ export type ResultsData = {
   opportunities: CategoryScore[];
 };
 
+export type ActionPlanWeek = {
+  week: 1 | 2 | 3 | 4;
+  title: string;
+  focusCategories: Category[];
+  actions: string[];
+};
+
 export type StrategySessionRequest = Pick<LeadProfile, 'name' | 'company' | 'email' | 'phone' | 'message'> & {
   submittedAt?: string;
 };

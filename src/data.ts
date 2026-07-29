@@ -91,13 +91,53 @@ export const categoryRevenueLeaks: Record<Category, string> = {
   'Customer Experience': 'Referral and review momentum may be leaking after project completion.',
 };
 
-export const categoryPlaybooks: Record<Category, string[]> = {
-  Pricing: ['Audit the last 10 completed jobs by gross margin.', 'Create a minimum-margin quoting rule for each job type.', 'Require written approval before any extra work starts.'],
-  Sales: ['Define your ideal-fit customer and disqualification rules.', 'Use one pipeline stage checklist from inquiry to signed agreement.', 'Schedule three follow-up touches before every estimate goes cold.'],
-  Marketing: ['Pick two measurable lead channels to improve this quarter.', 'Refresh project proof: photos, reviews, before/after stories.', 'Add a clear specialty promise to the website hero and estimate form.'],
-  'Cash Flow': ['Review cash, receivables, payables, and backlog every Monday.', 'Standardize deposits and progress billing by project type.', 'Flag every invoice older than seven days for owner review.'],
-  Systems: ['Document the estimate-to-handoff workflow in one page.', 'Remove one double-entry task from estimating or scheduling.', 'Create templates for scopes, selections, and client updates.'],
-  Team: ['Rewrite each role around outcomes, not tasks.', 'Choose one weekly scorecard metric per key seat.', 'Build a 30-day onboarding checklist for the next hire.'],
-  Operations: ['Launch every job with a scope, schedule, selections, and risk review.', 'Update schedule blockers twice per week.', 'Compare actual labor/material costs to estimate before job closeout.'],
-  'Customer Experience': ['Set communication expectations before production starts.', 'Use one punch-list and warranty intake process.', 'Ask for the review or referral within 48 hours of completion.'],
+export const categoryActionItems: Record<Category, string[]> = {
+  Pricing: [
+    'Job-cost the last 10 completed projects and rank them by gross-margin dollars, not contract value.',
+    'Set a minimum gross-margin target by job type and add it to every estimator’s bid checklist.',
+    'Build labor burden, material waste, supervision, and overhead recovery into the estimating template.',
+    'Require a priced, signed change order before crews perform work outside the approved scope.',
+  ],
+  Sales: [
+    'Define five qualification questions covering budget, decision-maker, timeline, scope, and job fit.',
+    'Create one pipeline with clear stages from new inquiry through deposit received, and assign every open lead a next step.',
+    'Use a three-touch follow-up sequence after every estimate: 24 hours, three business days, and seven business days.',
+    'Review estimates won and lost with the sales team, then correct the objection or handoff causing the most leakage.',
+  ],
+  Marketing: [
+    'Choose two lead sources to track and record source, job type, quoted value, and outcome for every inquiry.',
+    'Publish three recent projects with before-and-after photos, location, scope, and the client problem solved.',
+    'Ask five satisfied customers for a Google review using a direct link and a contractor-specific prompt.',
+    'Rewrite the website headline and estimate form around the trade, service area, and projects the company wants most.',
+  ],
+  'Cash Flow': [
+    'Build a rolling 13-week cash forecast covering payroll, materials, subcontractors, tax, and expected customer payments.',
+    'Review every open receivable and assign a collection owner and follow-up date before the next payroll run.',
+    'Reset deposit and progress-payment milestones so each active project funds its labor and material commitments.',
+    'Hold a 20-minute Monday cash meeting to compare bank balance, receivables, payables, and committed backlog.',
+  ],
+  Systems: [
+    'Map the estimate-to-job-start workflow and mark every handoff where information is re-entered or routinely missed.',
+    'Create standard templates for scope, selections, change orders, daily logs, and weekly client updates.',
+    'Document one owner-dependent task as a checklist and have a team member run it without verbal instructions.',
+    'Choose one source of truth for customer, estimate, schedule, and job-status information, then retire duplicate tracking.',
+  ],
+  Team: [
+    'Write a one-page outcome scorecard for each key role, including three weekly measures and decision authority.',
+    'List the owner’s recurring tasks and delegate one field or office responsibility with a clear definition of done.',
+    'Run structured weekly one-to-ones with the foreman, project manager, or office lead to remove blockers and confirm ownership.',
+    'Build a 30-day onboarding checklist covering safety, quality standards, tools, communication, and field expectations.',
+  ],
+  Operations: [
+    'Run a pre-construction meeting for every starting job covering scope, schedule, selections, materials, risks, and client expectations.',
+    'Create a twice-weekly schedule review that identifies labor, material, inspection, and subcontractor blockers two weeks ahead.',
+    'Compare estimated versus actual labor and material cost on every active job before the next billing milestone.',
+    'Standardize closeout with punch-list ownership, customer sign-off, final invoice, warranty handoff, and job-cost review.',
+  ],
+  'Customer Experience': [
+    'Set a written communication cadence at kickoff so every client knows who will update them, when, and through which channel.',
+    'Send one concise weekly project update covering progress, next steps, decisions needed, and schedule risks.',
+    'Use a single punch-list and warranty intake process with an owner, due date, photos, and completion confirmation.',
+    'Trigger a review and referral request within 48 hours of client sign-off, while project satisfaction is highest.',
+  ],
 };
