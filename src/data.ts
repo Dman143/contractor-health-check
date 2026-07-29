@@ -80,6 +80,8 @@ export const industryBenchmarks: Record<Category, number> = {
   'Customer Experience': 74,
 };
 
+export const benchmarkMethodology = 'TradeBuilt contractor operating benchmark, modeled across established small and mid-sized trade businesses. Scores are directional and intended for planning, not financial assurance.';
+
 export const categoryRevenueLeaks: Record<Category, string> = {
   Pricing: 'Margin is escaping through underpriced scopes, weak change-order discipline, or unprofitable job mix.',
   Sales: 'Good leads may be cooling off because qualification, follow-up, and close steps are inconsistent.',

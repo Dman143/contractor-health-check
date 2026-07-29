@@ -4,6 +4,7 @@ import {
   categoryActionItems,
   categoryGradients,
   categoryRevenueLeaks,
+  benchmarkMethodology,
   industryBenchmarks,
   monthlyRevenueOptions,
   questions,
@@ -11,7 +12,7 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import type { ActionPlanWeek, Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
+import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest } from './types';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -101,6 +102,28 @@ const getScoreBand = (score: number): ScoreBand => {
   return { label: 'Stabilize First', description: 'Focus on cash, delivery, and sales control before adding more volume or complexity.' };
 };
 
+const industryAverage = Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
+
+const getBusinessRanking = (score: number): BusinessRanking => {
+  if (score >= 90) return 'Top 10%';
+  if (score >= 80) return 'Top 25%';
+  if (score >= 72) return 'Above Average';
+  if (score >= 60) return 'Average';
+  if (score >= 45) return 'Below Average';
+  return 'Bottom 25%';
+};
+
+const getRankingExplanation = (overall: number, categoryScores: ResultsData['categories'], ranking: BusinessRanking) => {
+  const aboveBenchmark = categoryScores.filter(({ category, score }) => score >= industryBenchmarks[category]);
+  const strongest = [...categoryScores].sort((a, b) => (b.score - industryBenchmarks[b.category]) - (a.score - industryBenchmarks[a.category]))[0];
+  const delta = overall - industryAverage;
+  const comparison = delta === 0 ? 'in line with' : `${Math.abs(delta)} points ${delta > 0 ? 'above' : 'below'}`;
+  const proof = aboveBenchmark.length
+    ? `${aboveBenchmark.length} of 8 operating categories meet or exceed their benchmark, led by ${strongest.category}`
+    : `all eight operating categories remain below their benchmark, with ${strongest.category} closest to the peer standard`;
+  return `${ranking} reflects an overall score of ${overall}, ${comparison} the ${industryAverage}-point industry average; ${proof}.`;
+};
+
 
 const pdfSafe = (value: string) => value.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 const wrapPdfText = (value: string, limit = 82) => {
@@ -141,28 +164,36 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   text(overview, '/100', 130, 438, 20, 'F2', '0.42 0.46 0.52');
   text(overview, band.label, 42, 394, 22, 'F2', '0.78 0.45 0.08');
   wrapPdfText(band.description, 62).forEach((value, index) => text(overview, value, 42, 364 - index * 16, 11));
-  text(overview, 'BUSINESS PROFILE', 42, 288, 9, 'F2', '0.42 0.46 0.52');
+  text(overview, `OVERALL BUSINESS RANKING  |  ${results.ranking}`, 42, 320, 10, 'F2', '0.10 0.55 0.42');
+  wrapPdfText(results.rankingExplanation, 76).forEach((value, index) => text(overview, value, 42, 302 - index * 13, 8));
+  text(overview, 'BUSINESS PROFILE', 42, 248, 9, 'F2', '0.42 0.46 0.52');
   [[leadProfile.trade, 'Primary trade'], [leadProfile.teamSize, 'Team size'], [`${leadProfile.monthlyRevenue} / month`, 'Revenue range']].forEach(([value, label], index) => {
     const x = 42 + index * 176;
-    text(overview, label.toUpperCase(), x, 253, 7, 'F2', '0.48 0.52 0.58');
-    text(overview, value, x, 231, 11, 'F2');
+    text(overview, label.toUpperCase(), x, 223, 7, 'F2', '0.48 0.52 0.58');
+    text(overview, value, x, 203, 11, 'F2');
   });
-  text(overview, 'CONSULTANT PRIORITY', 42, 174, 9, 'F2', '0.42 0.46 0.52');
-  text(overview, `Strengthen ${priorityCategory} first.`, 42, 145, 18, 'F2', '0.04 0.07 0.12');
-  wrapPdfText(categoryRevenueLeaks[priorityCategory], 76).forEach((value, index) => text(overview, value, 42, 120 - index * 15, 10));
+  text(overview, 'CONSULTANT PRIORITY', 42, 158, 9, 'F2', '0.42 0.46 0.52');
+  text(overview, `Strengthen ${priorityCategory} first.`, 42, 132, 17, 'F2', '0.04 0.07 0.12');
+  wrapPdfText(categoryRevenueLeaks[priorityCategory], 76).forEach((value, index) => text(overview, value, 42, 108 - index * 14, 9));
 
   const scorecard = page();
   header(scorecard, 'Performance Scorecard');
   text(scorecard, 'Business performance by operating area', 42, 680, 23, 'F2', '0.04 0.07 0.12');
   text(scorecard, 'Scores are compared with the TradeBuilt contractor peer baseline.', 42, 654, 10);
+  text(scorecard, 'YOUR SCORE', 380, 628, 7, 'F2', '0.42 0.46 0.52');
+  text(scorecard, 'INDUSTRY AVG', 450, 628, 7, 'F2', '0.42 0.46 0.52');
+  text(scorecard, 'DIFFERENCE', 530, 628, 7, 'F2', '0.42 0.46 0.52');
   results.categories.forEach(({ category, score }, index) => {
     const y = 602 - index * 61;
     const benchmark = industryBenchmarks[category];
     text(scorecard, category, 42, y + 18, 11, 'F2');
-    text(scorecard, `${score}%`, 522, y + 18, 11, 'F2', score >= benchmark ? '0.10 0.55 0.42' : '0.78 0.45 0.08');
+    text(scorecard, `${score}%`, 388, y + 18, 11, 'F2');
+    text(scorecard, `${benchmark}%`, 466, y + 18, 11, 'F2');
+    text(scorecard, `${score - benchmark >= 0 ? '+' : ''}${score - benchmark}`, 540, y + 18, 11, 'F2', score >= benchmark ? '0.10 0.55 0.42' : '0.78 0.45 0.08');
     scorecard.push(`0.91 0.92 0.94 rg 42 ${y} 528 9 re f`, `0.96 0.66 0.18 rg 42 ${y} ${Math.max(4, 5.28 * score)} 9 re f`);
-    text(scorecard, `Peer baseline ${benchmark}%  |  ${score - benchmark >= 0 ? '+' : ''}${score - benchmark} point variance`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
+    text(scorecard, `Performance vs Industry`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
   });
+  wrapPdfText(benchmarkMethodology, 94).forEach((value, index) => text(scorecard, value, 42, 76 - index * 12, 7, 'F1', '0.42 0.46 0.52'));
 
   [plan.slice(0, 2), plan.slice(2)].forEach((weeks, pageIndex) => {
     const actionPlan = page();
@@ -232,11 +263,19 @@ const calculateResults = (answers: Record<number, number>): ResultsData => {
     return {
       category,
       score: Math.round((categoryTotal / (categoryQuestions.length * 5)) * 100),
+      industryAverage: industryBenchmarks[category],
+      difference: Math.round((categoryTotal / (categoryQuestions.length * 5)) * 100) - industryBenchmarks[category],
     };
   });
 
+  const overall = Math.round((answeredTotal / (questions.length * 5)) * 100);
+  const ranking = getBusinessRanking(overall);
+
   return {
-    overall: Math.round((answeredTotal / (questions.length * 5)) * 100),
+    overall,
+    industryAverage,
+    ranking,
+    rankingExplanation: getRankingExplanation(overall, categoryScores, ranking),
     categories: categoryScores,
     strengths: [...categoryScores].sort((a, b) => b.score - a.score).slice(0, 3),
     opportunities: [...categoryScores].sort((a, b) => a.score - b.score).slice(0, 3),
@@ -465,7 +504,7 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const actionPlan = createActionPlan(results);
-  const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
+  const benchmarkDelta = results.overall - results.industryAverage;
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -525,8 +564,9 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
               <h1 className="mt-4 text-3xl font-black md:text-4xl">{band.label}</h1>
               <p className="mt-3 leading-7 text-slate-300">{band.description}</p>
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-4">
-                <p className="text-sm font-bold uppercase tracking-[0.16em] text-slate-400">Benchmark delta</p>
-                <p className="mt-2 text-2xl font-black text-white">{benchmarkDelta >= 0 ? '+' : ''}{benchmarkDelta} points vs peer baseline</p>
+                <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-200">Overall Business Ranking</p>
+                <p className="mt-2 text-3xl font-black text-white">{results.ranking}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{results.rankingExplanation}</p>
               </div>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band)}>
@@ -548,10 +588,20 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart, onStrategy
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {results.categories.map(({ category, score }) => (
-                <BenchmarkBar category={category} key={category} score={score} />
-              ))}
+            <div>
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Consulting benchmark</p>
+                  <h2 className="mt-1 text-2xl font-black">Performance vs Industry</h2>
+                </div>
+                <span className={`rounded-full px-3 py-1.5 text-sm font-black ring-1 ${benchmarkDelta >= 0 ? 'bg-emerald-400/10 text-emerald-200 ring-emerald-300/20' : 'bg-amber-400/10 text-amber-200 ring-amber-300/20'}`}>{benchmarkDelta >= 0 ? '+' : ''}{benchmarkDelta} overall</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {results.categories.map(({ category, score }) => (
+                  <BenchmarkBar category={category} key={category} score={score} />
+                ))}
+              </div>
+              <p className="mt-4 text-xs leading-5 text-slate-500">{benchmarkMethodology}</p>
             </div>
           </div>
         </div>
@@ -714,17 +764,22 @@ function SelectField({ label, onChange, options, value }: { label: string; onCha
 
 function BenchmarkBar({ category, score }: { category: Category; score: number }) {
   const benchmark = industryBenchmarks[category];
+  const difference = score - benchmark;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-lg shadow-black/10">
       <div className="mb-3 flex items-center justify-between gap-3 text-sm">
         <span className="font-bold text-slate-100">{category}</span>
-        <span className="rounded-full bg-white/10 px-2.5 py-1 font-black text-white">{score}%</span>
+        <span className={`rounded-full px-2.5 py-1 font-black ${difference >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-amber-400/10 text-amber-200'}`}>{difference >= 0 ? '+' : ''}{difference}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
         <div className={`h-full rounded-full bg-gradient-to-r ${categoryGradients[category]}`} style={{ width: `${score}%` }} />
       </div>
-      <p className="mt-2 text-xs font-semibold text-slate-400">Peer baseline: {benchmark}% • Gap: {score - benchmark >= 0 ? '+' : ''}{score - benchmark}</p>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-wide text-slate-500">
+        <span>Your Score<strong className="mt-1 block text-sm text-white">{score}%</strong></span>
+        <span>Industry Average<strong className="mt-1 block text-sm text-slate-300">{benchmark}%</strong></span>
+        <span>Difference<strong className={`mt-1 block text-sm ${difference >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{difference >= 0 ? '+' : ''}{difference}</strong></span>
+      </div>
     </div>
   );
 }

@@ -17,6 +17,8 @@ export type Question = {
 export type CategoryScore = {
   category: Category;
   score: number;
+  industryAverage: number;
+  difference: number;
   description?: string;
 };
 
@@ -33,10 +35,15 @@ export type LeadProfile = {
 
 export type ResultsData = {
   overall: number;
+  industryAverage: number;
+  ranking: BusinessRanking;
+  rankingExplanation: string;
   categories: CategoryScore[];
   strengths: CategoryScore[];
   opportunities: CategoryScore[];
 };
+
+export type BusinessRanking = 'Top 10%' | 'Top 25%' | 'Above Average' | 'Average' | 'Below Average' | 'Bottom 25%';
 
 export type ActionPlanWeek = {
   week: 1 | 2 | 3 | 4;
