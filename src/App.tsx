@@ -327,8 +327,9 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart }: { leadPr
   const band = getScoreBand(results.overall);
   const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const benchmarkDelta = results.overall - Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
-  const [isStrategyFormOpen, setIsStrategyFormOpen] = useState(false);
+  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
+  const [strategyRequestNotice, setStrategyRequestNotice] = useState('');
 
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-6 md:py-10">
@@ -390,10 +391,20 @@ function ResultsPage({ leadProfile, results, onLeadUpdate, onRestart }: { leadPr
               <h2 className="text-3xl font-black">Unlock the 90-day Contractor Growth OS</h2>
               <p className="mt-2 leading-7 text-slate-200">Turn this report into weekly scorecards, pipeline reviews, job-margin tracking, and automated client follow-up workflows.</p>
             </div>
-            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5" onClick={() => setIsStrategyFormOpen((isOpen) => !isOpen)}>Request Strategy Session</button>
+            <button className="rounded-full bg-white px-7 py-4 text-center font-black text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-white/30" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Request Strategy Session</button>
           </div>
-          {isStrategyFormOpen && <StrategySessionForm initialProfile={leadProfile} onSubmit={(profile) => { onLeadUpdate(profile); setIsStrategyFormOpen(false); }} />}
+          {strategyRequestNotice && <p className="mt-5 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-100">{strategyRequestNotice}</p>}
         </section>
+        {isStrategyModalOpen && <StrategySessionModal
+          initialProfile={leadProfile}
+          onCancel={() => setIsStrategyModalOpen(false)}
+          onSubmit={(profile) => {
+            onLeadUpdate(profile);
+            setIsStrategyModalOpen(false);
+            setEmailNotice('');
+            setStrategyRequestNotice(`Strategy session request received for ${profile.name || profile.company || 'your company'}. Your lead profile has been saved at the top of this results page.`);
+          }}
+        />}
       </section>
     </main>
   );
@@ -418,7 +429,7 @@ function TextAreaField({ label, onChange, placeholder, required = false, value }
   );
 }
 
-function StrategySessionForm({ initialProfile, onSubmit }: { initialProfile: LeadProfile; onSubmit: (profile: LeadProfile) => void }) {
+function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (profile: LeadProfile) => void }) {
   const [profile, setProfile] = useState<LeadProfile>(initialProfile);
   const updateProfile = (field: keyof LeadProfile, value: string) => setProfile((existingProfile) => ({ ...existingProfile, [field]: value }));
 
@@ -428,22 +439,37 @@ function StrategySessionForm({ initialProfile, onSubmit }: { initialProfile: Lea
   };
 
   return (
-    <form className="mt-6 rounded-[1.5rem] border border-white/15 bg-slate-950/65 p-5 shadow-2xl shadow-black/20 md:p-6" onSubmit={handleSubmit}>
-      <div className="mb-5">
-        <h3 className="text-2xl font-black text-white">Request Strategy Session</h3>
-        <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused follow-up on this assessment.</p>
+    <div aria-labelledby="strategy-session-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-5 py-6 backdrop-blur-sm" role="dialog">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/15 bg-slate-950 p-6 text-white shadow-2xl shadow-black/50 md:p-8">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">In-app request</p>
+            <h3 className="mt-2 text-3xl font-black text-white" id="strategy-session-title">Request Strategy Session</h3>
+            <p className="mt-2 leading-6 text-slate-300">Share the best contact details and context for a focused follow-up on this assessment. No email client will open.</p>
+          </div>
+          <button aria-label="Cancel strategy session request" className="rounded-full border border-white/15 px-4 py-2 font-bold text-slate-200 transition hover:bg-white/10" onClick={onCancel} type="button">
+            ×
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField label="Name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
+            <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
+            <TextField label="Email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
+            <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
+          </div>
+          <TextAreaField label="Message" required placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button className="rounded-full border border-white/15 px-7 py-4 font-black text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10" onClick={onCancel} type="button">
+              Cancel
+            </button>
+            <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" type="submit">
+              Submit Request
+            </button>
+          </div>
+        </form>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
-        <TextField label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
-        <TextField label="Email" required type="email" value={profile.email} onChange={(value) => updateProfile('email', value)} />
-        <TextField label="Phone" required type="tel" value={profile.phone} onChange={(value) => updateProfile('phone', value)} />
-      </div>
-      <TextAreaField label="Message" required placeholder="What would make this strategy session valuable?" value={profile.message} onChange={(value) => updateProfile('message', value)} />
-      <button className="mt-5 w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-7 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5 sm:w-auto" type="submit">
-        Save Request
-      </button>
-    </form>
+    </div>
   );
 }
 
