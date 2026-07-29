@@ -25,10 +25,14 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Get My Business Health Score', 'Request My Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan']) {
+for (const requiredText of ['Get My Business Health Score', 'Request My Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day Action Plan', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
   }
+}
+
+for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below Average', 'Bottom 25%']) {
+  if (!appSource.includes(`'${ranking}'`)) throw new Error(`Missing business ranking: ${ranking}.`);
 }
 
 for (const week of ['Week 1', 'Week 2', 'Week 3', 'Week 4']) {
