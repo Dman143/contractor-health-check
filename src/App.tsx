@@ -871,9 +871,8 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
             await sendStrategySessionRequest({ ...request, assessmentScore: results.overall, priorityArea: strategyPriorityCategory });
             onLeadUpdate({ ...leadProfile, ...request });
             onStrategyRequest({ ...request, submittedAt: new Date().toISOString() });
-            setIsStrategyModalOpen(false);
             setEmailNotice('');
-            setStrategyRequestNotice(`Thank you, ${request.name}. Your strategy session request has been received.`);
+            setStrategyRequestNotice('');
           }}
         />}
       </section>
@@ -908,6 +907,7 @@ function TextAreaField({ label, onChange, placeholder, required = false, value }
 function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialProfile: LeadProfile; onCancel: () => void; onSubmit: (request: StrategySessionRequest) => Promise<void> }) {
   const [profile, setProfile] = useState<LeadProfile>(initialProfile);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedName, setSubmittedName] = useState('');
   const [submitError, setSubmitError] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -929,6 +929,8 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
     setSubmitError('');
     try {
       await onSubmit(profile);
+      setSubmittedName(profile.name);
+      setIsSubmitting(false);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'We couldn’t send your request. Please check your details and try again.');
       setIsSubmitting(false);
@@ -938,7 +940,28 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
   return (
     <div aria-labelledby="strategy-session-title" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-4 py-4 backdrop-blur-sm sm:px-5 sm:py-6" role="dialog">
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-white/15 bg-slate-950 p-5 text-white shadow-2xl shadow-black/50 sm:rounded-[2rem] md:p-8" ref={modalRef} tabIndex={-1}>
-        <div className="mb-6 flex items-start justify-between gap-4">
+        {submittedName ? (
+          <div className="surface-enter relative overflow-hidden rounded-[1.5rem] border border-emerald-300/20 bg-[radial-gradient(circle_at_top,rgba(52,211,153,.16),transparent_52%)] px-5 py-10 text-center sm:px-10 sm:py-14">
+            <div aria-hidden="true" className="absolute -left-16 -top-16 h-44 w-44 rounded-full bg-amber-300/10 blur-3xl" />
+            <div aria-hidden="true" className="absolute -bottom-20 -right-12 h-52 w-52 rounded-full bg-emerald-400/10 blur-3xl" />
+            <div className="relative">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-200/30 bg-emerald-400/15 shadow-[0_0_50px_rgba(52,211,153,.18)]">
+                <svg aria-hidden="true" className="h-10 w-10 text-emerald-200" fill="none" viewBox="0 0 24 24">
+                  <path d="m5 12 4 4L19 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+                </svg>
+              </div>
+              <p className="mt-7 text-sm font-black uppercase tracking-[0.2em] text-emerald-200">Request received</p>
+              <h3 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl" id="strategy-session-title">Thank you, {submittedName}.</h3>
+              <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-slate-200">TradeBuilt has received your Strategy Session request.</p>
+              <p className="mx-auto mt-2 max-w-xl leading-7 text-slate-400">Our team will review your assessment before responding, so the conversation can focus on the areas that matter most to your business.</p>
+              <button className="mt-8 rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-9 py-4 font-black text-slate-950 shadow-[0_18px_50px_rgba(245,158,11,.22)] transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-amber-300/30" onClick={onCancel} type="button">
+                Close Modal
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+          <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-amber-200">TradeBuilt advisory</p>
             <h3 className="mt-2 text-3xl font-black text-white" id="strategy-session-title">Request a Strategy Session</h3>
@@ -965,7 +988,9 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
               {isSubmitting ? 'Sending Request…' : 'Request My Session'}
             </button>
           </div>
-        </form>
+          </form>
+          </>
+        )}
       </div>
     </div>
   );
