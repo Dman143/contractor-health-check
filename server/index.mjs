@@ -5,6 +5,7 @@ import path from 'node:path';
 import tls from 'node:tls';
 import { fileURLToPath } from 'node:url';
 import { brand, getConfig } from './config.mjs';
+import { createLocalConsultingInsights } from './consulting-fallback.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -117,7 +118,7 @@ const validateAssessment = ({ leadProfile, results, assessmentAnswers } = {}) =>
 
 const generateConsultingInsights = async (assessment) => {
   validateAssessment(assessment);
-  if (!config.openai.apiKey) throw new Error('Missing required environment variable: OPENAI_API_KEY');
+  if (!config.openai.apiKey) return createLocalConsultingInsights(assessment);
   const { leadProfile, results, assessmentAnswers } = assessment;
   const businessData = {
     business: {
