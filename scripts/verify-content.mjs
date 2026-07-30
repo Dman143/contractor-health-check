@@ -48,11 +48,12 @@ for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below 
   if (!appSource.includes(`'${ranking}'`)) throw new Error(`Missing business ranking: ${ranking}.`);
 }
 
-for (const generatedSection of ['executiveSummary', 'bottleneck', 'priorities', 'weeks', 'quickWins', 'risk', 'estimatedOutcome', 'finalRecommendation']) {
+for (const generatedSection of ['executiveSummary', 'bottleneck', 'biggestOpportunity', 'categoryInsights', 'whyItMatters', 'priorities', 'weeks', 'quickWins', 'risk', 'estimatedOutcome', 'finalRecommendation']) {
   if (!serverSource.includes(generatedSection)) throw new Error(`Missing AI report section: ${generatedSection}.`);
 }
 
 if (!serverSource.includes('https://api.openai.com/v1/responses') || !serverSource.includes('OPENAI_API_KEY')) throw new Error('Missing server-side OpenAI integration.');
+if (!appSource.includes('assessmentAnswers') || !serverSource.includes('assessmentAnswers')) throw new Error('The AI consultant is not receiving the question-level assessment answers.');
 
 const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');
 
