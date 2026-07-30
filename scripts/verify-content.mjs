@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 const dataSource = readFileSync(new URL('../src/data.ts', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const serverSource = readFileSync(new URL('../server/index.mjs', import.meta.url), 'utf8');
+const serverConfigSource = readFileSync(new URL('../server/config.mjs', import.meta.url), 'utf8');
+const fallbackSource = readFileSync(new URL('../server/consulting-fallback.mjs', import.meta.url), 'utf8');
 const requiredCategories = [
   'Pricing',
   'Sales',
@@ -49,10 +51,11 @@ for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below 
 }
 
 for (const generatedSection of ['executiveSummary', 'bottleneck', 'biggestOpportunity', 'categoryInsights', 'whyItMatters', 'priorities', 'weeks', 'quickWins', 'risk', 'estimatedOutcome', 'finalRecommendation']) {
-  if (!serverSource.includes(generatedSection)) throw new Error(`Missing AI report section: ${generatedSection}.`);
+  if (!serverSource.includes(generatedSection) && !fallbackSource.includes(generatedSection)) throw new Error(`Missing consulting report section: ${generatedSection}.`);
 }
 
-if (!serverSource.includes('https://api.openai.com/v1/responses') || !serverSource.includes('OPENAI_API_KEY')) throw new Error('Missing server-side OpenAI integration.');
+if (!serverSource.includes('https://api.openai.com/v1/responses') || !serverConfigSource.includes('OPENAI_API_KEY')) throw new Error('Missing server-side OpenAI integration.');
+if (!serverSource.includes('createLocalConsultingInsights') || !fallbackSource.includes('createLocalConsultingInsights')) throw new Error('Missing local consulting fallback.');
 if (!appSource.includes('assessmentAnswers') || !serverSource.includes('assessmentAnswers')) throw new Error('The AI consultant is not receiving the question-level assessment answers.');
 
 const legacyStrategyCta = ['Book', 'a', 'Strategy', 'Call'].join(' ');
