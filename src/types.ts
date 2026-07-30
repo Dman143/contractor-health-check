@@ -52,9 +52,18 @@ export type ActionPlanWeek = {
   actions: string[];
 };
 
+export type CategoryConsultingInsight = {
+  category: Category;
+  score: number;
+  whyItMatters: string;
+  diagnosis: string;
+};
+
 export type TradeActionPlan = {
   executiveSummary: string;
   bottleneck: string;
+  biggestOpportunity: string;
+  categoryInsights: CategoryConsultingInsight[];
   priorities: string[];
   weeks: ActionPlanWeek[];
   quickWins: string[];

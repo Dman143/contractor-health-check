@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   categories,
   categoryGradients,
-  categoryRevenueLeaks,
   benchmarkMethodology,
   industryBenchmarks,
   monthlyRevenueOptions,
@@ -99,8 +98,14 @@ type StrategySessionPayload = StrategySessionRequest & {
   priorityArea: Category;
 };
 
-const generateConsultingInsights = async (leadProfile: LeadProfile, results: ResultsData) => {
-  const response = await requestJson<{ tradePlan: TradeActionPlan }>('/api/consulting-insights', { leadProfile, results }, 'Unable to generate consulting insights.');
+const generateConsultingInsights = async (leadProfile: LeadProfile, results: ResultsData, answers: Record<number, number>) => {
+  const assessmentAnswers = questions.map((question) => ({
+    category: question.category,
+    prompt: question.prompt,
+    score: answers[question.id],
+    response: scaleLabels[(answers[question.id] ?? 1) - 1],
+  }));
+  const response = await requestJson<{ tradePlan: TradeActionPlan }>('/api/consulting-insights', { leadProfile, results, assessmentAnswers }, 'Unable to generate consulting insights.');
   return response.tradePlan;
 };
 
@@ -174,7 +179,6 @@ const wrapPdfText = (value: string, limit = 82) => {
 };
 
 const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
-  const priorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
   const plan = tradePlan.weeks;
   const pages: string[][] = [];
@@ -200,7 +204,7 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
   text(overview, `${results.overall}`, 42, 428, 74, 'F2', '0.04 0.07 0.12');
   text(overview, '/100', 130, 438, 20, 'F2', '0.42 0.46 0.52');
   text(overview, band.label, 42, 394, 22, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(band.description, 62).forEach((value, index) => text(overview, value, 42, 364 - index * 16, 11));
+  wrapPdfText(tradePlan.executiveSummary, 62).slice(0, 5).forEach((value, index) => text(overview, value, 42, 364 - index * 16, 11));
   text(overview, `OVERALL BUSINESS RANKING  |  ${results.ranking}`, 42, 320, 10, 'F2', '0.10 0.55 0.42');
   wrapPdfText(results.rankingExplanation, 76).forEach((value, index) => text(overview, value, 42, 302 - index * 13, 8));
   text(overview, 'BUSINESS PROFILE', 42, 248, 9, 'F2', '0.42 0.46 0.52');
@@ -210,8 +214,8 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
     text(overview, value, x, 203, 11, 'F2');
   });
   text(overview, 'CONSULTANT PRIORITY', 42, 158, 9, 'F2', '0.42 0.46 0.52');
-  text(overview, `Strengthen ${priorityCategory} first.`, 42, 132, 17, 'F2', '0.04 0.07 0.12');
-  wrapPdfText(categoryRevenueLeaks[priorityCategory], 76).forEach((value, index) => text(overview, value, 42, 108 - index * 14, 9));
+  text(overview, 'Biggest opportunity', 42, 132, 17, 'F2', '0.04 0.07 0.12');
+  wrapPdfText(tradePlan.biggestOpportunity, 76).forEach((value, index) => text(overview, value, 42, 108 - index * 14, 9));
 
   const scorecard = page();
   header(scorecard, 'Performance Scorecard');
@@ -231,6 +235,15 @@ const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: S
     text(scorecard, `Performance vs Industry`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
   });
   wrapPdfText(benchmarkMethodology, 94).forEach((value, index) => text(scorecard, value, 42, 76 - index * 12, 7, 'F1', '0.42 0.46 0.52'));
+
+  const scoreInsights = page();
+  header(scoreInsights, 'Consultant Score Analysis');
+  text(scoreInsights, 'Why each score matters', 42, 680, 23, 'F2', '0.04 0.07 0.12');
+  tradePlan.categoryInsights.forEach((insight, index) => {
+    const y = 642 - index * 72;
+    text(scoreInsights, `${insight.category.toUpperCase()}  |  ${insight.score}%`, 42, y, 9, 'F2', '0.78 0.45 0.08');
+    wrapPdfText(`${insight.whyItMatters} ${insight.diagnosis}`, 92).slice(0, 3).forEach((value, lineIndex) => text(scoreInsights, value, 42, y - 18 - lineIndex * 12, 8));
+  });
 
   const planSummary = page();
   header(planSummary, '30-Day TradeBuilt Action Plan');
@@ -415,7 +428,7 @@ export default function App() {
     window.setTimeout(async () => {
       if (currentQuestionIndex === questions.length - 1) {
         try {
-          setTradePlan(await generateConsultingInsights(leadProfile, calculateResults(completedAnswers)));
+          setTradePlan(await generateConsultingInsights(leadProfile, calculateResults(completedAnswers), completedAnswers));
           setScreen('results');
         } catch (error) {
           setAssessmentError(error instanceof Error ? error.message : 'We couldn’t prepare your report. Please try again.');
@@ -628,10 +641,10 @@ function ReportPreview() {
 
 function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart, onStrategyRequest }: { leadProfile: LeadProfile; results: ResultsData; tradePlan: TradeActionPlan; strategySessionRequests: StrategySessionRequest[]; onLeadUpdate: (profile: LeadProfile) => void; onRestart: () => void; onStrategyRequest: (request: StrategySessionRequest) => void }) {
   const band = getScoreBand(results.overall);
-  const nextCategory = results.opportunities[0]?.category ?? 'Systems';
   const actionPlan = tradePlan.weeks;
   const benchmarkDelta = results.overall - results.industryAverage;
   const currentGrowthPhaseIndex = getGrowthPhaseIndex(results.overall);
+  const strategyPriorityCategory = results.opportunities[0]?.category ?? 'Systems';
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -656,7 +669,7 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
           ...results,
           opportunities: results.opportunities.map((opportunity) => ({
             ...opportunity,
-            description: categoryRevenueLeaks[opportunity.category],
+            description: tradePlan.categoryInsights.find(({ category }) => category === opportunity.category)?.diagnosis ?? '',
           })),
         },
       });
@@ -691,7 +704,7 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
                 {results.overall}<span className="text-3xl text-slate-400">/100</span>
               </div>
               <h1 className="mt-4 text-3xl font-black md:text-4xl">{band.label}</h1>
-              <p className="mt-3 leading-7 text-slate-300">{band.description}</p>
+              <p className="mt-3 leading-7 text-slate-300">{tradePlan.executiveSummary}</p>
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-4">
                 <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-200">Overall Business Ranking</p>
                 <p className="mt-2 text-3xl font-black text-white">{results.ranking}</p>
@@ -742,9 +755,9 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-3">
-          <InsightCard title="Top 3 Strengths" items={results.strengths.map((item) => `${item.category}: ${item.score}%`)} />
-          <InsightCard title="Top 3 Opportunities" items={results.opportunities.map((item) => `${item.category}: ${categoryRevenueLeaks[item.category]}`)} />
-          <InsightCard title="Primary Constraint" items={[`${nextCategory} scored ${results.opportunities[0]?.score ?? 0}%.`, categoryRevenueLeaks[nextCategory]]} />
+          <InsightCard title="Top 3 Strengths" items={results.strengths.map((item) => tradePlan.categoryInsights.find(({ category }) => category === item.category)?.diagnosis ?? `${item.category}: ${item.score}%`)} />
+          <InsightCard title="Top 3 Opportunities" items={[tradePlan.biggestOpportunity, ...tradePlan.priorities.slice(0, 2)]} />
+          <InsightCard title="Primary Constraint" items={[tradePlan.bottleneck]} />
         </div>
 
         <section className="relative mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[.065] p-6 shadow-2xl shadow-black/25 md:p-10">
@@ -757,8 +770,10 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
             </div>
             <div className="mt-8 grid gap-5 lg:grid-cols-2">
               <InsightCard title="Your biggest bottleneck" items={[tradePlan.bottleneck]} />
-              <InsightCard title="Top 3 priorities" items={tradePlan.priorities} />
+              <InsightCard title="Your biggest opportunity" items={[tradePlan.biggestOpportunity]} />
             </div>
+            <div className="mt-5"><InsightCard title="Why each score matters" items={tradePlan.categoryInsights.map((insight) => `${insight.category} (${insight.score}%): ${insight.whyItMatters} ${insight.diagnosis}`)} /></div>
+            <div className="mt-5"><InsightCard title="Top 3 priorities" items={tradePlan.priorities} /></div>
             <div className="mt-8 grid gap-5 lg:grid-cols-2">
               {actionPlan.map((week) => (
                 <article className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-6 shadow-xl shadow-black/15" key={week.week}>
@@ -848,7 +863,7 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
           initialProfile={leadProfile}
           onCancel={() => setIsStrategyModalOpen(false)}
           onSubmit={async (request) => {
-            await sendStrategySessionRequest({ ...request, assessmentScore: results.overall, priorityArea: nextCategory });
+            await sendStrategySessionRequest({ ...request, assessmentScore: results.overall, priorityArea: strategyPriorityCategory });
             onLeadUpdate({ ...leadProfile, ...request });
             onStrategyRequest({ ...request, submittedAt: new Date().toISOString() });
             setIsStrategyModalOpen(false);
