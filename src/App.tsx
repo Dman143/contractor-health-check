@@ -171,7 +171,10 @@ const getRankingExplanation = (overall: number, categoryScores: ResultsData['cat
 
 const pdfSafe = (value: string) => value.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 const wrapPdfText = (value: string, limit = 82) => {
-  const words = pdfSafe(value).split(/\s+/);
+  const words = pdfSafe(value).trim().split(/\s+/).filter(Boolean).flatMap((word) => {
+    if (word.length <= limit) return [word];
+    return Array.from({ length: Math.ceil(word.length / limit) }, (_, index) => word.slice(index * limit, (index + 1) * limit));
+  });
   return words.reduce<string[]>((lines, word) => {
     const last = lines.at(-1) ?? '';
     if (!last || `${last} ${word}`.length > limit) lines.push(word);
@@ -180,173 +183,144 @@ const wrapPdfText = (value: string, limit = 82) => {
   }, []);
 };
 
-const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
+export const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
   const reportDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
-  const plan = tradePlan.weeks;
   const pages: string[][] = [];
-  const page = () => { const commands: string[] = []; pages.push(commands); return commands; };
-  const text = (commands: string[], value: string, x: number, y: number, size = 10, font = 'F1', color = '0.16 0.20 0.27') => {
+  let commands: string[] = [];
+  let cursor = 680;
+  const text = (value: string, x: number, y: number, size = 10, font = 'F1', color = '0.16 0.20 0.27') => {
     commands.push(`${color} rg BT /${font} ${size} Tf ${x} ${y} Td (${pdfSafe(value)}) Tj ET`);
   };
-  const line = (commands: string[], x1: number, y1: number, x2: number, y2: number, color = '0.85 0.87 0.90') => commands.push(`${color} RG 1 w ${x1} ${y1} m ${x2} ${y2} l S`);
-  const header = (commands: string[], section: string) => {
+  const newPage = (section: string) => {
+    commands = [];
+    pages.push(commands);
+    cursor = 680;
     commands.push('0.04 0.07 0.12 rg 0 728 612 64 re f', '0.96 0.66 0.18 rg 42 745 12 12 re f');
-    text(commands, 'TRADEBUILT', 65, 746, 14, 'F2', '1 1 1');
-    text(commands, section.toUpperCase(), 430, 747, 8, 'F2', '0.74 0.78 0.84');
-    text(commands, `Prepared ${reportDate}`, 42, 26, 8, 'F1', '0.42 0.46 0.52');
-    text(commands, `TradeBuilt Business Health Report  |  ${pages.length}`, 390, 26, 8, 'F1', '0.42 0.46 0.52');
+    text('TRADEBUILT', 65, 746, 14, 'F2', '1 1 1');
+    text(section.toUpperCase().slice(0, 28), 390, 747, 8, 'F2', '0.74 0.78 0.84');
+    text(`Prepared ${reportDate}`, 42, 26, 8, 'F1', '0.42 0.46 0.52');
+    text(`TradeBuilt Business Health Report  |  ${pages.length}`, 390, 26, 8, 'F1', '0.42 0.46 0.52');
   };
+  const ensure = (height: number, section: string) => { if (cursor - height < 52) newPage(section); };
+  const paragraph = (value: string, options: { size?: number; width?: number; leading?: number; indent?: number; color?: string; font?: string; after?: number; section?: string } = {}) => {
+    const { size = 9, width = 91, leading = 13, indent = 0, color = '0.16 0.20 0.27', font = 'F1', after = 10, section = 'Report continued' } = options;
+    const lines = wrapPdfText(value, width);
+    lines.forEach((line) => { ensure(leading, section); text(line, 42 + indent, cursor, size, font, color); cursor -= leading; });
+    cursor -= after;
+  };
+  const heading = (value: string, section: string, level: 1 | 2 = 2) => {
+    const size = level === 1 ? 23 : 10;
+    const leading = level === 1 ? 29 : 16;
+    ensure(leading + 12, section);
+    text(value, 42, cursor, size, 'F2', level === 1 ? '0.04 0.07 0.12' : '0.78 0.45 0.08');
+    cursor -= leading;
+  };
+  const rule = (section: string) => { ensure(20, section); commands.push(`0.85 0.87 0.90 RG 1 w 42 ${cursor} m 570 ${cursor} l S`); cursor -= 20; };
 
-  const overview = page();
-  header(overview, 'Business Health Report');
-  text(overview, 'CONTRACTOR GROWTH DIAGNOSTIC', 42, 681, 9, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(`${leadProfile.company} Business Health Report`, 38).forEach((value, index) => text(overview, value, 42, 638 - index * 34, 27, 'F2', '0.04 0.07 0.12'));
-  text(overview, `Prepared for ${leadProfile.name}`, 42, 555, 12, 'F1', '0.35 0.39 0.45');
-  line(overview, 42, 528, 570, 528);
-  text(overview, `${results.overall}`, 42, 428, 74, 'F2', '0.04 0.07 0.12');
-  text(overview, '/100', 130, 438, 20, 'F2', '0.42 0.46 0.52');
-  text(overview, band.label, 42, 394, 22, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(tradePlan.executiveSummary, 62).slice(0, 5).forEach((value, index) => text(overview, value, 42, 364 - index * 16, 11));
-  text(overview, `OVERALL BUSINESS RANKING  |  ${results.ranking}`, 42, 320, 10, 'F2', '0.10 0.55 0.42');
-  wrapPdfText(results.rankingExplanation, 76).forEach((value, index) => text(overview, value, 42, 302 - index * 13, 8));
-  text(overview, 'BUSINESS PROFILE', 42, 248, 9, 'F2', '0.42 0.46 0.52');
-  [[leadProfile.trade, 'Primary trade'], [leadProfile.teamSize, 'Team size'], [`${leadProfile.monthlyRevenue} / month`, 'Revenue range']].forEach(([value, label], index) => {
-    const x = 42 + index * 176;
-    text(overview, label.toUpperCase(), x, 223, 7, 'F2', '0.48 0.52 0.58');
-    text(overview, value, x, 203, 11, 'F2');
-  });
-  text(overview, 'CONSULTANT PRIORITY', 42, 158, 9, 'F2', '0.42 0.46 0.52');
-  text(overview, 'Biggest opportunity', 42, 132, 17, 'F2', '0.04 0.07 0.12');
-  wrapPdfText(tradePlan.biggestOpportunity, 76).forEach((value, index) => text(overview, value, 42, 108 - index * 14, 9));
+  newPage('Business Health Report');
+  paragraph('CONTRACTOR GROWTH DIAGNOSTIC', { size: 9, font: 'F2', color: '0.78 0.45 0.08', after: 14 });
+  paragraph(`${leadProfile.company} Business Health Report`, { size: 27, width: 38, leading: 33, font: 'F2', color: '0.04 0.07 0.12', after: 8 });
+  paragraph(`Prepared for ${leadProfile.name}`, { size: 12, color: '0.35 0.39 0.45', after: 18 });
+  rule('Overview');
+  paragraph(`${results.overall}/100`, { size: 42, leading: 48, font: 'F2', color: '0.04 0.07 0.12', after: 2 });
+  paragraph(band.label, { size: 20, leading: 24, font: 'F2', color: '0.78 0.45 0.08' });
+  paragraph(tradePlan.executiveSummary, { size: 10, width: 82, leading: 15, after: 14, section: 'Executive summary' });
+  heading(`OVERALL BUSINESS RANKING  |  ${results.ranking}`, 'Overview');
+  paragraph(results.rankingExplanation, { width: 88 });
+  heading('BUSINESS PROFILE', 'Overview');
+  paragraph(`Primary trade: ${leadProfile.trade}  |  Team size: ${leadProfile.teamSize}  |  Monthly revenue: ${leadProfile.monthlyRevenue}`, { width: 86 });
+  heading('BIGGEST OPPORTUNITY', 'Overview');
+  paragraph(tradePlan.biggestOpportunity, { width: 86, section: 'Biggest opportunity' });
 
-  const scorecard = page();
-  header(scorecard, 'Performance Scorecard');
-  text(scorecard, 'Business performance by operating area', 42, 680, 23, 'F2', '0.04 0.07 0.12');
-  text(scorecard, 'Scores are compared with the TradeBuilt contractor peer baseline.', 42, 654, 10);
-  text(scorecard, 'YOUR SCORE', 380, 628, 7, 'F2', '0.42 0.46 0.52');
-  text(scorecard, 'INDUSTRY AVG', 450, 628, 7, 'F2', '0.42 0.46 0.52');
-  text(scorecard, 'DIFFERENCE', 530, 628, 7, 'F2', '0.42 0.46 0.52');
-  results.categories.forEach(({ category, score }, index) => {
-    const y = 602 - index * 61;
+  newPage('Performance Scorecard');
+  heading('Business performance by operating area', 'Scorecard', 1);
+  paragraph('Scores are compared with the TradeBuilt contractor peer baseline.', { after: 16 });
+  results.categories.forEach(({ category, score }) => {
+    ensure(54, 'Performance Scorecard');
     const benchmark = industryBenchmarks[category];
-    text(scorecard, category, 42, y + 18, 11, 'F2');
-    text(scorecard, `${score}%`, 388, y + 18, 11, 'F2');
-    text(scorecard, `${benchmark}%`, 466, y + 18, 11, 'F2');
-    text(scorecard, `${score - benchmark >= 0 ? '+' : ''}${score - benchmark}`, 540, y + 18, 11, 'F2', score >= benchmark ? '0.10 0.55 0.42' : '0.78 0.45 0.08');
-    scorecard.push(`0.91 0.92 0.94 rg 42 ${y} 528 9 re f`, `0.96 0.66 0.18 rg 42 ${y} ${Math.max(4, 5.28 * score)} 9 re f`);
-    text(scorecard, `Performance vs Industry`, 42, y - 16, 8, 'F1', '0.42 0.46 0.52');
+    text(category, 42, cursor, 11, 'F2');
+    text(`${score}%`, 390, cursor, 11, 'F2');
+    text(`Peer ${benchmark}%`, 450, cursor, 9, 'F1', '0.42 0.46 0.52');
+    text(`${score - benchmark >= 0 ? '+' : ''}${score - benchmark}`, 540, cursor, 10, 'F2', score >= benchmark ? '0.10 0.55 0.42' : '0.78 0.45 0.08');
+    cursor -= 19;
+    commands.push(`0.91 0.92 0.94 rg 42 ${cursor} 528 9 re f`, `0.96 0.66 0.18 rg 42 ${cursor} ${Math.max(4, 5.28 * score)} 9 re f`);
+    cursor -= 31;
   });
-  wrapPdfText(benchmarkMethodology, 94).forEach((value, index) => text(scorecard, value, 42, 76 - index * 12, 7, 'F1', '0.42 0.46 0.52'));
+  paragraph(benchmarkMethodology, { size: 7, width: 105, leading: 11, color: '0.42 0.46 0.52', section: 'Scorecard methodology' });
 
-  const scoreInsights = page();
-  header(scoreInsights, 'Consultant Score Analysis');
-  text(scoreInsights, 'Why each score matters', 42, 680, 23, 'F2', '0.04 0.07 0.12');
-  tradePlan.categoryInsights.forEach((insight, index) => {
-    const y = 642 - index * 72;
-    text(scoreInsights, `${insight.category.toUpperCase()}  |  ${insight.score}%`, 42, y, 9, 'F2', '0.78 0.45 0.08');
-    wrapPdfText(`${insight.whyItMatters} ${insight.diagnosis}`, 92).slice(0, 3).forEach((value, lineIndex) => text(scoreInsights, value, 42, y - 18 - lineIndex * 12, 8));
-  });
-
-  const planSummary = page();
-  header(planSummary, '30-Day TradeBuilt Action Plan');
-  text(planSummary, 'Your 30-Day TradeBuilt Action Plan', 42, 680, 23, 'F2', '0.04 0.07 0.12');
-  wrapPdfText(tradePlan.context, 88).forEach((value, index) => text(planSummary, value, 42, 650 - index * 14, 9));
-  text(planSummary, 'YOUR BIGGEST BOTTLENECK', 42, 590, 9, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(tradePlan.bottleneck, 88).forEach((value, index) => text(planSummary, value, 42, 566 - index * 14, 9));
-  text(planSummary, 'TOP 3 PRIORITIES', 42, 485, 9, 'F2', '0.78 0.45 0.08');
-  tradePlan.priorities.forEach((priority, index) => wrapPdfText(`${index + 1}. ${priority}`, 84).forEach((value, lineIndex) => text(planSummary, value, 42, 460 - index * 55 - lineIndex * 13, 9)));
-  text(planSummary, '3 QUICK WINS UNDER 30 MINUTES', 42, 280, 9, 'F2', '0.78 0.45 0.08');
-  tradePlan.quickWins.forEach((win, index) => wrapPdfText(`${index + 1}. ${win}`, 84).forEach((value, lineIndex) => text(planSummary, value, 42, 255 - index * 55 - lineIndex * 13, 9)));
-
-  [plan.slice(0, 2), plan.slice(2)].forEach((weeks, pageIndex) => {
-    const actionPlan = page();
-    header(actionPlan, '30-Day Action Plan');
-    text(actionPlan, pageIndex === 0 ? 'Your personalized 30-day action plan' : 'Your personalized action plan, continued', 42, 680, 23, 'F2', '0.04 0.07 0.12');
-    text(actionPlan, `Built from your lowest scores: ${results.opportunities.map(({ category, score }) => `${category} ${score}%`).join('  |  ')}`, 42, 654, 9);
-    weeks.forEach((week, weekIndex) => {
-      const top = 606 - weekIndex * 270;
-      text(actionPlan, `WEEK ${week.week}`, 42, top, 9, 'F2', '0.78 0.45 0.08');
-      text(actionPlan, week.title, 42, top - 27, 17, 'F2', '0.04 0.07 0.12');
-      week.actions.forEach((step, index) => {
-        const itemY = top - 70 - index * 57;
-        text(actionPlan, `${index + 1}`, 42, itemY, 11, 'F2', '0.78 0.45 0.08');
-        wrapPdfText(step, 76).forEach((value, lineIndex) => text(actionPlan, value, 70, itemY - lineIndex * 13, 9));
-      });
-      if (weekIndex === 0) line(actionPlan, 42, top - 238, 570, top - 238);
-    });
+  newPage('Consultant Score Analysis');
+  heading('Why each score matters', 'Score analysis', 1);
+  tradePlan.categoryInsights.forEach((insight) => {
+    const body = `${insight.whyItMatters} ${insight.diagnosis}`;
+    const lines = wrapPdfText(body, 91);
+    ensure(22 + lines.length * 12 + 13, 'Consultant Score Analysis');
+    heading(`${insight.category.toUpperCase()}  |  ${insight.score}%`, 'Consultant Score Analysis');
+    paragraph(body, { size: 8, width: 91, leading: 12, after: 13, section: 'Consultant Score Analysis' });
   });
 
-  const planOutcome = page();
-  header(planOutcome, '30-Day Plan Outcome');
-  text(planOutcome, 'Protect the business, then build momentum', 42, 680, 22, 'F2', '0.04 0.07 0.12');
-  text(planOutcome, 'BIGGEST BUSINESS RISK IF NOTHING CHANGES', 42, 628, 9, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(tradePlan.risk, 86).forEach((value, index) => text(planOutcome, value, 42, 600 - index * 15, 10));
-  line(planOutcome, 42, 492, 570, 492);
-  text(planOutcome, 'ESTIMATED OUTCOME IF THIS PLAN IS COMPLETED', 42, 455, 9, 'F2', '0.10 0.55 0.42');
-  wrapPdfText(tradePlan.estimatedOutcome, 86).forEach((value, index) => text(planOutcome, value, 42, 425 - index * 15, 10));
-  text(planOutcome, 'FINAL CONSULTANT RECOMMENDATION', 42, 335, 9, 'F2', '0.78 0.45 0.08');
-  wrapPdfText(tradePlan.finalRecommendation, 86).forEach((value, index) => text(planOutcome, value, 42, 307 - index * 15, 10));
-  text(planOutcome, 'DAY-30 OWNER REVIEW', 42, 270, 9, 'F2', '0.42 0.46 0.52');
-  ['Confirm each priority has one accountable owner.', 'Compare the three category scores and benchmark gaps with today’s baseline.', 'Keep the operating rhythm that worked; replace any step the field team did not use.'].forEach((item, index) => text(planOutcome, `${index + 1}. ${item}`, 42, 244 - index * 32, 9));
+  newPage('30-Day Action Plan');
+  heading('Your 30-Day TradeBuilt Action Plan', 'Action plan', 1);
+  paragraph(tradePlan.context, { width: 88, leading: 14, section: 'Action plan context' });
+  heading('YOUR BIGGEST BOTTLENECK', 'Action plan');
+  paragraph(tradePlan.bottleneck, { width: 88, section: 'Bottleneck' });
+  heading('TOP 3 PRIORITIES', 'Priorities');
+  tradePlan.priorities.forEach((priority, index) => paragraph(`${index + 1}. ${priority.replace(/^\d+\.\s*/, '')}`, { width: 86, indent: 8, section: 'Priorities' }));
+  heading('3 QUICK WINS UNDER 30 MINUTES', 'Quick wins');
+  tradePlan.quickWins.forEach((win, index) => paragraph(`${index + 1}. ${win}`, { width: 86, indent: 8, section: 'Quick wins' }));
 
-  const roadmap = page();
+  tradePlan.weeks.forEach((week) => {
+    const required = 54 + week.actions.reduce((sum, action) => sum + wrapPdfText(action, 78).length * 13 + 10, 0);
+    ensure(required, `Week ${week.week}`);
+    heading(`WEEK ${week.week}  |  ${week.title}`, `Week ${week.week}`, 1);
+    paragraph(`Focus: ${week.focusCategories.join(' | ')}`, { size: 8, font: 'F2', color: '0.78 0.45 0.08' });
+    week.actions.forEach((action, index) => paragraph(`${index + 1}. ${action}`, { width: 78, indent: 14, section: `Week ${week.week}` }));
+    rule(`Week ${week.week}`);
+  });
+
+  heading('BIGGEST BUSINESS RISK IF NOTHING CHANGES', 'Plan outcome');
+  paragraph(tradePlan.risk, { width: 86, leading: 14, section: 'Plan outcome' });
+  heading('ESTIMATED OUTCOME IF THIS PLAN IS COMPLETED', 'Plan outcome');
+  paragraph(tradePlan.estimatedOutcome, { width: 86, leading: 14, section: 'Plan outcome' });
+  heading('FINAL CONSULTANT RECOMMENDATION', 'Plan outcome');
+  paragraph(tradePlan.finalRecommendation, { width: 86, leading: 14, section: 'Plan outcome' });
+
+  newPage('Growth Roadmap');
+  heading('Your Growth Roadmap', 'Growth Roadmap', 1);
   const currentPhaseIndex = getGrowthPhaseIndex(results.overall);
-  header(roadmap, 'Growth Roadmap');
-  text(roadmap, 'Your Growth Roadmap', 42, 680, 25, 'F2', '0.04 0.07 0.12');
-  text(roadmap, `CURRENT STAGE  |  PHASE ${currentPhaseIndex + 1} - ${growthPhases[currentPhaseIndex].name.toUpperCase()}`, 42, 647, 10, 'F2', '0.78 0.45 0.08');
-  wrapPdfText('Build in sequence: strengthen the current stage before adding the complexity of the next.', 80).forEach((value, index) => text(roadmap, value, 42, 624 - index * 14, 10));
+  paragraph(`CURRENT STAGE  |  PHASE ${currentPhaseIndex + 1} - ${growthPhases[currentPhaseIndex].name.toUpperCase()}`, { font: 'F2', color: '0.78 0.45 0.08' });
+  paragraph('Build in sequence: strengthen the current stage before adding the complexity of the next.', { after: 18 });
   growthPhases.forEach((phase, index) => {
-    const top = 550 - index * 113;
+    ensure(88, 'Growth Roadmap');
     const isCurrent = index === currentPhaseIndex;
-    roadmap.push(`${isCurrent ? '0.99 0.94 0.82' : '0.95 0.96 0.97'} rg 42 ${top - 66} 528 86 re f`);
-    text(roadmap, `PHASE ${phase.number}`, 58, top, 8, 'F2', isCurrent ? '0.78 0.45 0.08' : '0.42 0.46 0.52');
-    text(roadmap, phase.name, 58, top - 24, 16, 'F2', '0.04 0.07 0.12');
-    text(roadmap, phase.focus.join('  |  '), 198, top - 22, 10, 'F1', '0.24 0.28 0.34');
-    if (isCurrent) text(roadmap, 'YOUR CURRENT PHASE', 438, top, 7, 'F2', '0.78 0.45 0.08');
+    commands.push(`${isCurrent ? '0.99 0.94 0.82' : '0.95 0.96 0.97'} rg 42 ${cursor - 62} 528 78 re f`);
+    text(`PHASE ${phase.number}`, 58, cursor - 4, 8, 'F2', isCurrent ? '0.78 0.45 0.08' : '0.42 0.46 0.52');
+    text(phase.name, 58, cursor - 29, 16, 'F2', '0.04 0.07 0.12');
+    wrapPdfText(phase.focus.join('  |  '), 54).forEach((value, lineIndex) => text(value, 198, cursor - 25 - lineIndex * 12, 9));
+    if (isCurrent) text('YOUR CURRENT PHASE', 438, cursor - 4, 7, 'F2', '0.78 0.45 0.08');
+    cursor -= 94;
   });
-  text(roadmap, 'NEXT STEP', 42, 80, 8, 'F2', '0.42 0.46 0.52');
-  text(roadmap, 'Request a Strategy Session', 42, 55, 16, 'F2', '0.04 0.07 0.12');
-
-  const dashboard = page();
-  header(dashboard, 'TradeBuilt Growth Preview');
-  dashboard.push('0.04 0.07 0.12 rg 28 62 556 642 re f');
-  text(dashboard, 'PREVIEW OF TRADEBUILT GROWTH', 48, 670, 8, 'F2', '0.96 0.66 0.18');
-  text(dashboard, 'Your TradeBuilt Dashboard', 48, 638, 23, 'F2', '1 1 1');
-  text(dashboard, 'One place to monitor the numbers that actually grow your contracting business.', 48, 615, 9, 'F1', '0.67 0.72 0.80');
-  dashboardMetrics.forEach((metric, index) => {
-    const column = index % 2;
-    const row = Math.floor(index / 2);
-    const x = 48 + column * 260;
-    const y = 555 - row * 94;
-    dashboard.push(`0.08 0.12 0.19 rg ${x} ${y - 56} 244 76 re f`, `0.18 0.23 0.31 RG .5 w ${x} ${y - 56} 244 76 re S`);
-    text(dashboard, metric.label.toUpperCase(), x + 14, y + 2, 7, 'F2', '0.55 0.61 0.70');
-    text(dashboard, metric.value, x + 14, y - 26, 17, 'F2', '1 1 1');
-    if (metric.trend) text(dashboard, metric.trend, x + 132, y - 24, 8, 'F2', metric.trendDirection === 'down' ? '0.96 0.66 0.18' : metric.trendDirection === 'neutral' ? '0.67 0.72 0.80' : '0.20 0.78 0.56');
-  });
-  text(dashboard, 'SAMPLE DATA  |  Your live dashboard updates as your business moves.', 48, 76, 8, 'F1', '0.55 0.61 0.70');
+  heading('NEXT STEP', 'Growth Roadmap');
+  paragraph('Request a Strategy Session', { size: 16, font: 'F2', color: '0.04 0.07 0.12' });
 
   const fontObjectIds = { regular: 3 + pages.length * 2, bold: 4 + pages.length * 2 };
   const pageObjectIds = pages.map((_, index) => 3 + index * 2);
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`,
-  ];
-  pages.forEach((commands, index) => {
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`];
+  pages.forEach((pageCommands, index) => {
     const pageId = pageObjectIds[index];
-    const stream = commands.join('\n');
+    const stream = pageCommands.join('\n');
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectIds.regular} 0 R /F2 ${fontObjectIds.bold} 0 R >> >> /Contents ${pageId + 1} 0 R >>`);
-    objects.push(`<< /Length ${stream.length} >> stream\n${stream}\nendstream`);
+    objects.push(`<< /Length ${new TextEncoder().encode(stream).length} >> stream\n${stream}\nendstream`);
   });
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
-  objects.forEach((object, index) => { offsets.push(pdf.length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
-  const xref = pdf.length;
+  objects.forEach((object, index) => { offsets.push(new TextEncoder().encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xref = new TextEncoder().encode(pdf).length;
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
   pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   const filename = `${(leadProfile.company || 'contractor').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-health-check-report.pdf`;
-  return { blob: new Blob([pdf], { type: 'application/pdf' }), filename };
+  return { blob: new Blob([pdf], { type: 'application/pdf' }), filename, pageCount: pages.length };
 };
 
 const downloadPdfReport = (leadProfile: LeadProfile, results: ResultsData, band: ScoreBand, tradePlan: TradeActionPlan) => {
@@ -910,6 +884,7 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
   const [submittedName, setSubmittedName] = useState('');
   const [submitError, setSubmitError] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
+  const submissionInFlight = useRef(false);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     modalRef.current?.focus();
@@ -924,7 +899,8 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (submissionInFlight.current) return;
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     setSubmitError('');
     try {
@@ -933,6 +909,7 @@ function StrategySessionModal({ initialProfile, onCancel, onSubmit }: { initialP
       setIsSubmitting(false);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'We couldn’t send your request. Please check your details and try again.');
+      submissionInFlight.current = false;
       setIsSubmitting(false);
     }
   };
