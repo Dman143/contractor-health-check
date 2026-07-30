@@ -19,6 +19,8 @@ const RIGHT = 570;
 const TOP = 680;
 const BOTTOM = 52;
 const CONTENT_WIDTH = RIGHT - LEFT;
+// CSS pixels convert to PDF points at 0.75pt per pixel (24px = 18pt).
+const RANKING_SECTION_SPACING = 18;
 
 // Widths from the PDF core Helvetica font metrics, in thousandths of an em.
 // PDF viewers use these same metrics, so wrapping is based on rendered width rather
@@ -141,6 +143,14 @@ class PdfFlow {
     });
     // Spacing is flow content too: if it does not fit, defer it to the next page.
     if (after <= this.remaining()) this.cursor -= after;
+    return this.cursor;
+  }
+
+  continueBelow(finalY: number, spacing: number, section: string) {
+    // Continue from the measured end of the preceding rendered content rather
+    // than placing the next section at an independent page coordinate.
+    this.cursor = Math.min(this.cursor, finalY);
+    this.gap(spacing, section);
   }
 
   heading(value: string, section: string, level: 1 | 2 = 2, followingHeight = 26) {
@@ -199,9 +209,10 @@ export const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, 
   flow.rule('Overview');
   flow.paragraph(`${results.overall}/100`, { size: 42, leading: 48, font: 'F2', color: '0.04 0.07 0.12', after: 2 });
   flow.paragraph(band.label, { size: 20, leading: 24, font: 'F2', color: '0.78 0.45 0.08' });
-  flow.paragraph(tradePlan.executiveSummary, { size: 10, leading: 15, after: 14, section: 'Executive summary' });
-  flow.heading(`OVERALL BUSINESS RANKING  |  ${results.ranking}`, 'Overall Business Ranking');
-  flow.paragraph(results.rankingExplanation, { section: 'Overall Business Ranking' });
+  const executiveSummaryFinalY = flow.paragraph(tradePlan.executiveSummary, { size: 10, leading: 15, after: 0, section: 'Executive summary' });
+  flow.continueBelow(executiveSummaryFinalY, RANKING_SECTION_SPACING, 'Overview');
+  flow.heading(`OVERALL BUSINESS RANKING  |  ${results.ranking}`, 'Overview');
+  flow.paragraph(results.rankingExplanation, { section: 'Overview' });
   flow.heading('BUSINESS PROFILE', 'Overview');
   flow.paragraph(`Primary trade: ${leadProfile.trade}  |  Team size: ${leadProfile.teamSize}  |  Monthly revenue: ${leadProfile.monthlyRevenue}`);
   flow.heading('BIGGEST OPPORTUNITY', 'Biggest opportunity');
