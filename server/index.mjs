@@ -110,7 +110,7 @@ const validateAssessment = ({ leadProfile, results, assessmentAnswers } = {}) =>
   if (results.overall < 0 || results.overall > 100 || results.categories.some(({ score }) => !Number.isFinite(score) || score < 0 || score > 100)) {
     throw new Error('Assessment scores must be between 0 and 100.');
   }
-  if (!Array.isArray(assessmentAnswers) || assessmentAnswers.length !== 25 || assessmentAnswers.some(({ category, prompt, score, response }) => !categories.includes(category) || typeof prompt !== 'string' || !prompt.trim() || !Number.isInteger(score) || score < 1 || score > 5 || typeof response !== 'string')) {
+  if (!Array.isArray(assessmentAnswers) || assessmentAnswers.length !== 25 || new Set(assessmentAnswers.map(({ questionId }) => questionId)).size !== 25 || assessmentAnswers.some(({ questionId, category, prompt, score, response }) => !Number.isInteger(questionId) || questionId < 1 || questionId > 25 || !categories.includes(category) || typeof prompt !== 'string' || !prompt.trim() || !Number.isInteger(score) || score < 1 || score > 5 || typeof response !== 'string')) {
     throw new Error('All 25 assessment answers are required.');
   }
 };
