@@ -8,7 +8,14 @@ body { margin: 0; min-width: 320px; background: #020617; -webkit-font-smoothing:
 button, a, select { cursor: pointer; }
 button, input, select, textarea { font: inherit; }
 button:disabled { cursor: not-allowed; transform: none !important; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #fcd34d; outline-offset: 3px; }
+summary { cursor: pointer; }
 ::selection { background: rgba(251, 191, 36, .3); color: #fff; }
+.skip-link { position: fixed; top: .75rem; left: .75rem; z-index: 100; transform: translateY(-180%); border-radius: 9999px; background: #fff; padding: .75rem 1rem; font-weight: 800; color: #020617; box-shadow: 0 12px 30px rgba(0,0,0,.35); transition: transform .15s ease; }
+.skip-link:focus { transform: translateY(0); }
+.surface-enter { animation: surface-enter .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes surface-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }

@@ -462,6 +462,7 @@ export default function App() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
+      <a className="skip-link" href="#assessment-question">Skip to question</a>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,.20),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,.18),transparent_35%)]" />
       <section className="relative mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center px-5 py-8 sm:px-6 md:py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300 md:mb-8">
@@ -479,11 +480,12 @@ export default function App() {
           </div>
         </div>
 
-        <article className="rounded-[1.75rem] border border-white/10 bg-white/[.075] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8 md:rounded-[2.25rem] md:p-12">
+        <article className="surface-enter rounded-[1.75rem] border border-white/10 bg-white/[.075] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8 md:rounded-[2.25rem] md:p-12" id="assessment-question">
           <p className="mb-5 inline-flex rounded-full bg-amber-400/15 px-4 py-2 text-sm font-bold text-amber-200 ring-1 ring-amber-300/20">
             {currentQuestion.category}
           </p>
-          <h1 className="text-3xl font-black leading-tight tracking-tight md:text-5xl">{currentQuestion.prompt}</h1>
+          <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-[-0.025em] md:text-5xl">{currentQuestion.prompt}</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Choose the answer that best reflects how the business operates today—not where you want it to be.</p>
           {assessmentError && <p aria-live="assertive" className="mt-6 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-100" role="alert">{assessmentError} Your answers are saved; select an answer to retry.</p>}
           <div className="mt-8 grid gap-3 sm:grid-cols-2 md:mt-10 md:grid-cols-5">
             {scaleLabels.map((label, index) => (
@@ -509,6 +511,7 @@ export default function App() {
 function LandingPage({ onStart }: { onStart: () => void }) {
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <section className="relative isolate px-5 py-6 sm:px-6 md:px-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_12%,rgba(251,191,36,.28),transparent_26%),radial-gradient(circle_at_88%_18%,rgba(56,189,248,.20),transparent_28%),linear-gradient(135deg,#020617,#111827_48%,#0f172a)]" />
         <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 rounded-full border border-white/10 bg-white/[.04] px-4 py-3 backdrop-blur md:px-5">
@@ -518,7 +521,7 @@ function LandingPage({ onStart }: { onStart: () => void }) {
           <span className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-slate-300 sm:text-sm">Contractor Business Health Assessment</span>
         </nav>
 
-        <div className="mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-10 py-12 md:py-16 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+        <div className="mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-10 py-12 md:py-16 lg:grid-cols-[1.05fr_.95fr] lg:gap-14" id="main-content">
           <div className="max-w-4xl">
             <p className="mb-6 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-amber-200 ring-1 ring-white/15">
               Built for contractors ready to grow with control
@@ -543,6 +546,11 @@ function LandingPage({ onStart }: { onStart: () => void }) {
               </button>
               <span className="text-sm font-medium text-slate-400">Free • Takes about 5 minutes • Instant report</span>
             </div>
+            <div className="mt-8 flex flex-wrap gap-x-7 gap-y-3 border-t border-white/10 pt-6 text-xs font-bold uppercase tracking-[0.12em] text-slate-400" aria-label="Assessment deliverables">
+              <span><strong className="text-white">8</strong> operating areas</span>
+              <span><strong className="text-white">30-day</strong> roadmap</span>
+              <span><strong className="text-white">PDF</strong> report included</span>
+            </div>
           </div>
           <ReportPreview />
         </div>
@@ -565,6 +573,7 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
 
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-6 md:py-12">
+      <a className="skip-link" href="#business-profile-form">Skip to form</a>
       <section className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[.85fr_1.15fr]">
         <div>
           <button className="mb-8 rounded-full border border-white/15 px-4 py-2 font-semibold text-slate-300 transition hover:bg-white/10" onClick={onBack}>← Back</button>
@@ -572,7 +581,7 @@ function LeadCapturePage({ initialProfile, onBack, onSubmit }: { initialProfile:
           <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">Make this assessment specific to your business.</h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">Tell us where the business stands today. We’ll tailor your scorecard and action plan to your trade, team, and current revenue stage.</p>
         </div>
-        <form className="rounded-[2rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:p-8" onSubmit={handleSubmit}>
+        <form className="surface-enter rounded-[2rem] border border-white/10 bg-white/[.07] p-6 shadow-2xl shadow-black/30 backdrop-blur md:p-8" id="business-profile-form" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField autoComplete="name" label="Your name" required value={profile.name} onChange={(value) => updateProfile('name', value)} />
             <TextField autoComplete="organization" label="Company" required value={profile.company} onChange={(value) => updateProfile('company', value)} />
@@ -662,8 +671,9 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-6 md:py-10">
-      <section className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-slate-950 px-5 py-8 pb-28 text-white sm:px-6 md:py-10 md:pb-10">
+      <a className="skip-link" href="#report-summary">Skip to report</a>
+      <section className="mx-auto max-w-6xl" id="report-summary">
         <div className="mb-8 grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/[.05] p-5 text-sm text-slate-300 shadow-xl shadow-black/10 md:grid-cols-[1fr_auto] md:items-center md:p-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Business profile</p>
@@ -695,7 +705,10 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
                   {isEmailSending && <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-sky-100/30 border-t-sky-100" />}
                   {isEmailSending ? 'Sending Report…' : 'Email My Report'}
                 </button>
-                <button className="rounded-full border border-white/15 px-6 py-4 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10 sm:col-span-2" onClick={onRestart}>
+                <button className="rounded-full bg-white px-6 py-4 font-black text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-100 sm:col-span-2" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>
+                  Discuss My Results
+                </button>
+                <button className="py-2 text-sm font-bold text-slate-400 underline decoration-white/20 underline-offset-4 transition hover:text-white sm:col-span-2" onClick={onRestart}>
                   Retake Assessment
                 </button>
               </div>
@@ -720,7 +733,10 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
                   <BenchmarkBar category={category} key={category} score={score} />
                 ))}
               </div>
-              <p className="mt-4 text-xs leading-5 text-slate-500">{benchmarkMethodology}</p>
+              <details className="mt-4 rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 text-xs leading-5 text-slate-400">
+                <summary className="font-bold text-slate-300">How your score and benchmark are calculated</summary>
+                <p className="mt-2">Each answer is scored from 1–5, then converted to a percentage within its operating category. Your overall score weights all 25 questions equally. {benchmarkMethodology}</p>
+              </details>
             </div>
           </div>
         </div>
@@ -841,6 +857,9 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
           }}
         />}
       </section>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/90 p-3 backdrop-blur-xl md:hidden">
+        <button className="w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-3.5 font-black text-slate-950 shadow-[0_12px_32px_rgba(245,158,11,.25)]" onClick={() => { setEmailNotice(''); setStrategyRequestNotice(''); setIsStrategyModalOpen(true); }}>Discuss My Results</button>
+      </div>
     </main>
   );
 }
@@ -944,17 +963,18 @@ function SelectField({ label, onChange, options, value }: { label: string; onCha
 }
 
 function MetricSparkline({ points }: { points: number[] }) {
+  const gradientId = useId();
   const coordinates = points.map((point, index) => `${(index / (points.length - 1)) * 100},${42 - (point / 100) * 36}`).join(' ');
 
   return (
     <svg aria-hidden="true" className="h-11 w-24 overflow-visible" viewBox="0 0 100 42">
       <defs>
-        <linearGradient id="sparkline-fill" x1="0" x2="0" y1="0" y2="1">
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="#fbbf24" stopOpacity=".24" />
           <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon fill="url(#sparkline-fill)" points={`0,42 ${coordinates} 100,42`} />
+      <polygon fill={`url(#${gradientId})`} points={`0,42 ${coordinates} 100,42`} />
       <polyline fill="none" points={coordinates} stroke="#fbbf24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
     </svg>
   );
@@ -1012,7 +1032,7 @@ function BenchmarkBar({ category, score }: { category: Category; score: number }
         <span className="font-bold text-slate-100">{category}</span>
         <span className={`rounded-full px-2.5 py-1 font-black ${difference >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-amber-400/10 text-amber-200'}`}>{difference >= 0 ? '+' : ''}{difference}</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+      <div aria-label={`${category} score: ${score} percent; industry average: ${benchmark} percent`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={score} className="h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar">
         <div className={`h-full rounded-full bg-gradient-to-r ${categoryGradients[category]}`} style={{ width: `${score}%` }} />
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-wide text-slate-500">
