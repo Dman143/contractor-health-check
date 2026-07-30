@@ -11,7 +11,7 @@ import {
   tradeOptions,
 } from './data';
 import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
-import { hasCompleteAssessment, saveAssessmentAnswer } from './assessment';
+import { answerCurrentQuestion } from './assessment';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -403,39 +403,10 @@ export default function App() {
   const [tradePlan, setTradePlan] = useState<TradeActionPlan | null>(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [assessmentError, setAssessmentError] = useState('');
-  const [completionAttempt, setCompletionAttempt] = useState(0);
 
   const currentQuestion = questions[currentQuestionIndex];
   const results = useMemo(() => calculateResults(answers), [answers]);
   const progress = ((currentQuestionIndex + (answers[currentQuestion.id] ? 1 : 0)) / questions.length) * 100;
-
-  useEffect(() => {
-    if (!completionAttempt) return;
-
-    if (!hasCompleteAssessment(answers, questions.map(({ id }) => id))) {
-      setAssessmentError('All 25 assessment answers are required.');
-      setIsGeneratingInsights(false);
-      return;
-    }
-
-    let isCurrentAttempt = true;
-    const completeAssessment = async () => {
-      try {
-        const completedResults = calculateResults(answers);
-        const completedTradePlan = await generateConsultingInsights(leadProfile, completedResults, answers);
-        if (!isCurrentAttempt) return;
-        setTradePlan(completedTradePlan);
-        setScreen('results');
-      } catch (error) {
-        if (isCurrentAttempt) setAssessmentError(error instanceof Error ? error.message : 'We couldn’t prepare your report. Please try again.');
-      } finally {
-        if (isCurrentAttempt) setIsGeneratingInsights(false);
-      }
-    };
-
-    void completeAssessment();
-    return () => { isCurrentAttempt = false; };
-  }, [completionAttempt]);
 
   const startAssessment = () => {
     setScreen('lead-capture');
@@ -445,7 +416,6 @@ export default function App() {
     setLeadProfile(profile);
     setTradePlan(null);
     setAnswers({});
-    setCompletionAttempt(0);
     setCurrentQuestionIndex(0);
     setScreen('assessment');
   };
@@ -453,17 +423,28 @@ export default function App() {
   const selectScore = async (score: number) => {
     if (isGeneratingInsights) return;
     setAssessmentError('');
-    const completedAnswers = saveAssessmentAnswer(answers, currentQuestion.id, score);
-    setAnswers(completedAnswers);
-    if (currentQuestionIndex === questions.length - 1) {
-      setIsGeneratingInsights(true);
-      setCompletionAttempt((attempt) => attempt + 1);
+    const progress = answerCurrentQuestion(answers, currentQuestionIndex, questions.map(({ id }) => id), score);
+    setAnswers(progress.answers);
+    setCurrentQuestionIndex(progress.currentQuestionIndex);
+
+    if (currentQuestionIndex !== questions.length - 1) return;
+
+    if (!progress.isComplete) {
+      setAssessmentError('All 25 assessment answers are required.');
       return;
     }
 
-    window.setTimeout(() => {
-      setCurrentQuestionIndex((index) => index + 1);
-    }, 180);
+    setIsGeneratingInsights(true);
+    try {
+      const completedResults = calculateResults(progress.answers);
+      const completedTradePlan = await generateConsultingInsights(leadProfile, completedResults, progress.answers);
+      setTradePlan(completedTradePlan);
+      setScreen('results');
+    } catch (error) {
+      setAssessmentError(error instanceof Error ? error.message : 'We couldn’t prepare your report. Please try again.');
+    } finally {
+      setIsGeneratingInsights(false);
+    }
   };
 
   const goBack = () => {
