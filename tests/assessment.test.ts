@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
+import { answerCurrentQuestion, hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
 
 const questionIds = Array.from({ length: 25 }, (_, index) => index + 1);
 
@@ -28,4 +28,22 @@ test('saving the final answer preserves every earlier answer', () => {
   assert.equal(completedAnswers[25], 5);
   assert.equal(hasCompleteAssessment(completedAnswers, questionIds), true);
   assert.notEqual(completedAnswers, previousAnswers);
+});
+
+test('advancing records the current answer and moves to exactly the next question', () => {
+  const firstClick = answerCurrentQuestion({}, 0, questionIds, 3);
+  const repeatedClickBeforeRender = answerCurrentQuestion({}, 0, questionIds, 5);
+
+  assert.equal(firstClick.currentQuestionIndex, 1);
+  assert.equal(repeatedClickBeforeRender.currentQuestionIndex, 1);
+  assert.deepEqual(repeatedClickBeforeRender.answers, { 1: 5 });
+});
+
+test('the final answer is validated from the same completed snapshot', () => {
+  const previousAnswers = Object.fromEntries(questionIds.slice(0, -1).map((id) => [id, 3]));
+  const progress = answerCurrentQuestion(previousAnswers, 24, questionIds, 4);
+
+  assert.equal(progress.isComplete, true);
+  assert.equal(progress.answers[25], 4);
+  assert.equal(progress.currentQuestionIndex, 24);
 });
