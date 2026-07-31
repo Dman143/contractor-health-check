@@ -8,7 +8,7 @@ const assessment = {
   results: {
     overall: 62,
     industryAverage: 65,
-    ranking: 'Growth Constrained',
+    performanceRating: 'Growth Constrained',
     categories: categories.map((category, index) => ({ category, score: 45 + index * 5, industryAverage: 65, difference: index * 5 - 20 })),
   },
   assessmentAnswers: Array.from({ length: 25 }, (_, index) => ({

@@ -21,7 +21,7 @@ const TOP = 680;
 const BOTTOM = 52;
 const CONTENT_WIDTH = RIGHT - LEFT;
 // CSS pixels convert to PDF points at 0.75pt per pixel (24px = 18pt).
-const RANKING_SECTION_SPACING = 18;
+const PERFORMANCE_RATING_SECTION_SPACING = 18;
 // Keep the large score's full font box clear of the title divider. Without this
 // PDF-only spacing, the divider crosses the upper portion of the score glyphs.
 const TITLE_DIVIDER_TO_SCORE_SPACING = 24;
@@ -222,9 +222,9 @@ export const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, 
     }));
   }
   const executiveSummaryFinalY = flow.paragraph(tradePlan.executiveSummary, { size: 10, leading: 15, after: 0, section: 'Executive summary' });
-  flow.continueBelow(executiveSummaryFinalY, RANKING_SECTION_SPACING, 'Overview');
-  flow.heading(`OVERALL BUSINESS RANKING  |  ${results.ranking}`, 'Overview');
-  flow.paragraph(results.rankingExplanation, { section: 'Overview' });
+  flow.continueBelow(executiveSummaryFinalY, PERFORMANCE_RATING_SECTION_SPACING, 'Overview');
+  flow.heading(`PERFORMANCE RATING  |  ${results.performanceRating}`, 'Overview');
+  flow.paragraph(results.performanceRatingExplanation, { section: 'Overview' });
   flow.heading('BUSINESS PROFILE', 'Overview');
   flow.paragraph(`Primary trade: ${leadProfile.trade}  |  Team size: ${leadProfile.teamSize}  |  Monthly revenue: ${leadProfile.monthlyRevenue}`);
   flow.heading('BIGGEST OPPORTUNITY', 'Biggest opportunity');

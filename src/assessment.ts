@@ -1,3 +1,5 @@
+import type { PerformanceRating } from './types.ts';
+
 export type AssessmentAnswers = Record<number, number>;
 
 export type AssessmentProgress = {
@@ -37,4 +39,12 @@ export const answerCurrentQuestion = (
     currentQuestionIndex: isLastQuestion ? currentQuestionIndex : currentQuestionIndex + 1,
     isComplete: isLastQuestion && hasCompleteAssessment(nextAnswers, questionIds),
   };
+};
+export const getPerformanceRating = (score: number): PerformanceRating => {
+  if (score >= 90) return 'Elite';
+  if (score >= 80) return 'Excellent';
+  if (score >= 70) return 'Strong';
+  if (score >= 60) return 'Growth Ready';
+  if (score >= 50) return 'Growth Constrained';
+  return 'Needs Attention';
 };

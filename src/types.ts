@@ -36,15 +36,15 @@ export type LeadProfile = {
 export type ResultsData = {
   overall: number;
   industryAverage: number;
-  ranking: BusinessRanking;
-  rankingExplanation: string;
+  performanceRating: PerformanceRating;
+  performanceRatingExplanation: string;
   categories: CategoryScore[];
   strengths: CategoryScore[];
   opportunities: CategoryScore[];
   isPerfectSelfReported?: boolean;
 };
 
-export type BusinessRanking = 'Top 10%' | 'Top 25%' | 'Above Average' | 'Average' | 'Below Average' | 'Bottom 25%';
+export type PerformanceRating = 'Elite' | 'Excellent' | 'Strong' | 'Growth Ready' | 'Growth Constrained' | 'Needs Attention';
 
 export type ActionPlanWeek = {
   week: 1 | 2 | 3 | 4;
