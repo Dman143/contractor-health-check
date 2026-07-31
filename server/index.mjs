@@ -232,17 +232,25 @@ const handleConsultingInsights = async (request, response) => {
 
 const smtpRead = (socket) => new Promise((resolve, reject) => {
   let buffer = '';
+  const cleanup = () => {
+    socket.off('data', onData);
+    socket.off('error', onError);
+  };
+  const onError = (error) => {
+    cleanup();
+    reject(error);
+  };
   const onData = (chunk) => {
     buffer += chunk.toString('utf8');
     const lines = buffer.split(/\r?\n/).filter(Boolean);
     const lastLine = lines.at(-1) ?? '';
     if (/^\d{3} /.test(lastLine)) {
-      socket.off('data', onData);
+      cleanup();
       resolve(buffer);
     }
   };
   socket.on('data', onData);
-  socket.once('error', reject);
+  socket.once('error', onError);
 });
 
 const smtpCommand = async (socket, command, expectedCodes) => {
@@ -253,13 +261,17 @@ const smtpCommand = async (socket, command, expectedCodes) => {
   return response;
 };
 
-const sendSmtpEmail = async ({ subject, text, html, replyTo, to, attachment }) => {
-  if (!config.smtp.username) throw new Error('Missing required environment variable: SMTP_USER');
-  if (!config.smtp.password) throw new Error('Missing required environment variable: SMTP_PASS');
+const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc, attachment }) => {
+  if (!config.smtp.username) throw new Error('Missing SMTP username (SMTP_USER).');
+  if (!config.smtp.password) throw new Error('Missing SMTP password (SMTP_PASS).');
+  if (!config.smtp.fromEmail) throw new Error('Missing SMTP sender address (REPORT_FROM_EMAIL).');
 
   const { host, port, secure } = config.smtp;
   const from = sanitizeHeader(config.smtp.fromEmail);
   const recipient = sanitizeHeader(to);
+  const blindCopy = sanitizeHeader(bcc);
+  const envelopeRecipients = [...new Set([recipient, blindCopy].filter(Boolean))];
+  if (!envelopeRecipients.length || envelopeRecipients.some((address) => !emailPattern.test(address))) throw new Error('A valid email recipient is required.');
   const mixedBoundary = `mixed-${Date.now().toString(36)}`;
   const alternativeBoundary = `content-${Date.now().toString(36)}`;
   const socket = secure ? tls.connect(port, host, { servername: host }) : net.connect(port, host);
@@ -272,7 +284,7 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, attachment }) =
     await smtpCommand(socket, Buffer.from(config.smtp.username).toString('base64'), [334]);
     await smtpCommand(socket, Buffer.from(config.smtp.password).toString('base64'), [235]);
     await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
-    await smtpCommand(socket, `RCPT TO:<${recipient}>`, [250, 251]);
+    for (const address of envelopeRecipients) await smtpCommand(socket, `RCPT TO:<${address}>`, [250, 251]);
     await smtpCommand(socket, 'DATA', [354]);
 
     const headers = [
@@ -319,12 +331,32 @@ const formatReportEmail = (payload) => {
   const planSection = (title, content) => content ? `<div style="margin-top:20px;padding:18px;border-left:4px solid #fbbf24;background:#f8fafc"><h3 style="margin:0 0 8px;color:#0f172a;font-size:16px">${escapeHtml(title)}</h3><p style="margin:0;color:#475569;line-height:1.65">${escapeHtml(content)}</p></div>` : '';
   const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">A new TradeBuilt assessment is ready for review.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p><p style="margin:14px 0 5px;color:#059669;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS RANKING</p><p style="margin:0;color:#0f172a;font-size:24px;font-weight:800">${escapeHtml(results.ranking)}</p></div>${section('Contact and business profile', leadLines)}${section('Performance vs Industry — Your Score | Industry Average | Difference', benchmarkLines)}${planSection('Executive Summary', tradePlan?.executiveSummary)}${section('Why each score matters', categoryInsightLines)}${planSection('Your biggest bottleneck', tradePlan?.bottleneck)}${planSection('Your biggest opportunity', tradePlan?.biggestOpportunity)}${section('Top 3 priorities by impact', tradePlan?.priorities ?? [])}<div style="margin-top:30px"><h2 style="margin:0 0 4px;font-size:22px;color:#0f172a">Your 30-Day TradeBuilt Action Plan</h2>${actionPlanHtml}${section('Three quick wins under 30 minutes', tradePlan?.quickWins ?? [])}${planSection('Biggest business risk if nothing changes', tradePlan?.risk)}${planSection('Estimated outcome if this plan is completed', tradePlan?.estimatedOutcome)}${planSection('Final Consultant Recommendation', tradePlan?.finalRecommendation)}</div><p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">The complete PDF report is attached for review.</p></div></main></body></html>`;
 
-  return { subject: `TradeBuilt lead report - ${subjectName}`, text: lines.join('\n'), html, replyTo: leadProfile.email, to: config.assessmentRecipientEmail, attachment: payload.pdf };
+  return { subject: `Your TradeBuilt Business Health Report - ${subjectName}`, text: lines.join('\n'), html, replyTo: config.assessmentRecipientEmail, to: leadProfile.email, bcc: config.assessmentRecipientEmail, attachment: payload.pdf };
+};
+
+const logEmailRoute = (route, request, payload = {}) => {
+  console.error('[Email route invoked]', {
+    route,
+    method: request.method,
+    url: request.url,
+    requestId: request.headers['x-request-id'] || request.headers['x-vercel-id'] || request.headers['x-render-request-id'],
+    smtpHost: config.smtp.host,
+    smtpPort: config.smtp.port,
+    smtpSecure: config.smtp.secure,
+    smtpUsernameConfigured: Boolean(config.smtp.username),
+    smtpUsernameSource: config.smtp.usernameSource,
+    smtpPasswordConfigured: Boolean(config.smtp.password),
+    smtpPasswordSource: config.smtp.passwordSource,
+    fromEmailConfigured: Boolean(config.smtp.fromEmail),
+    recipientSource: config.assessmentRecipientSource,
+    ...payload,
+  });
 };
 
 const handleEmailReport = async (request, response) => {
   try {
     const payload = await readJsonBody(request);
+    logEmailRoute('email-report', request, { attachmentBytes: payload.pdf?.base64?.length ?? 0 });
     if (!emailPattern.test(payload.leadProfile?.email ?? '') || !payload.results?.categories?.length || !payload.pdf?.base64 || payload.pdf.base64.length > MAX_PDF_BASE64_BYTES || !/^[a-z0-9][a-z0-9._-]*\.pdf$/i.test(payload.pdf?.filename ?? '')) {
       jsonResponse(response, 400, { message: 'Lead profile and assessment results are required.' });
       return;
@@ -333,7 +365,7 @@ const handleEmailReport = async (request, response) => {
     jsonResponse(response, 200, { message: 'Report email sent.' });
   } catch (error) {
     const isBadRequest = requestErrorMessages.includes(error.message);
-    if (!isBadRequest) console.error(error);
+    if (!isBadRequest) console.error('[Email report route failed]', { message: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
     jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send report email.' });
   }
 };
@@ -341,6 +373,7 @@ const handleEmailReport = async (request, response) => {
 const handleStrategySession = async (request, response) => {
   try {
     const payload = await readJsonBody(request);
+    logEmailRoute('strategy-session', request);
     if (!payload.name?.trim() || !payload.company?.trim() || !emailPattern.test(payload.email ?? '') || [payload.name, payload.company, payload.email, payload.phone].some((value) => String(value ?? '').length > 254) || String(payload.message ?? '').length > 1000 || !Number.isFinite(payload.assessmentScore) || !categories.includes(payload.priorityArea)) {
       jsonResponse(response, 400, { message: 'Name, company, and a valid email are required.' });
       return;
@@ -356,7 +389,7 @@ const handleStrategySession = async (request, response) => {
     jsonResponse(response, 200, { message: 'Strategy session request sent.' });
   } catch (error) {
     const isBadRequest = requestErrorMessages.includes(error.message);
-    if (!isBadRequest) console.error(error);
+    if (!isBadRequest) console.error('[Strategy session route failed]', { message: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
     jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send strategy session request.' });
   }
 };
@@ -376,15 +409,16 @@ export const handleRequest = async (request, response) => {
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('X-Frame-Options', 'DENY');
-  if (request.method === 'POST' && request.url === '/api/consulting-insights') {
+  const pathname = new URL(request.url, `http://${request.headers.host || 'localhost'}`).pathname.replace(/\/$/, '') || '/';
+  if (request.method === 'POST' && pathname === '/api/consulting-insights') {
     await handleConsultingInsights(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/email-report') {
+  if (request.method === 'POST' && pathname === '/api/email-report') {
     await handleEmailReport(request, response);
     return;
   }
-  if (request.method === 'POST' && request.url === '/api/strategy-session') {
+  if (request.method === 'POST' && pathname === '/api/strategy-session') {
     await handleStrategySession(request, response);
     return;
   }

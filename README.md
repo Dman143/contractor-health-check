@@ -22,7 +22,7 @@ POST /api/email-report
 POST /api/strategy-session
 ```
 
-`/api/consulting-insights` sends the completed business profile, scorecard, strongest and weakest categories, and benchmark gaps to OpenAI and returns a structured consulting report. The API key and prompt remain on the server. `/api/email-report` delivers the complete lead assessment to the TradeBuilt recipient and attaches the generated PDF. The contractor's submitted address is used as the reply-to address. `/api/strategy-session` sends strategy requests to the same recipient with the contractor's address set as the reply-to contact. Both email endpoints default to `daniel@tradebuilt.pro`.
+`/api/consulting-insights` sends the completed business profile, scorecard, strongest and weakest categories, and benchmark gaps to OpenAI and returns a structured consulting report. The API key and prompt remain on the server. `/api/email-report` sends the attached PDF to the contractor and blind-copies the configured TradeBuilt recipient. `/api/strategy-session` sends strategy requests to that recipient with the contractor's address set as the reply-to contact. The recipient defaults to `daniel@tradebuilt.pro`.
 
 ### Production environment variables
 
@@ -33,7 +33,7 @@ OPENAI_API_KEY=your-openai-api-key
 TRADEBUILT_RECIPIENT_EMAIL=daniel@tradebuilt.pro
 ```
 
-`OPENAI_API_KEY` enables live AI-generated consulting insights. When it is absent, the server automatically returns a personalized, deterministic consulting plan derived from the assessment scores, so local development requires no `.env` file. `SMTP_USER` and `SMTP_PASS` are only required for email delivery. Keep production credentials in encrypted environment variables; never use a `VITE_` prefix for the OpenAI key. `TRADEBUILT_RECIPIENT_EMAIL` is the single optional routing override for both assessment reports and strategy-session requests; it defaults to `daniel@tradebuilt.pro`. The application defaults are centralized in `server/config.mjs`. For Gmail, use an app password for `SMTP_PASS`.
+`OPENAI_API_KEY` enables live AI-generated consulting insights. When it is absent, the server automatically returns a personalized, deterministic consulting plan derived from the assessment scores, so local development requires no `.env` file. `SMTP_USER` and `SMTP_PASS` are required for email delivery. Keep production credentials in encrypted environment variables; never use a `VITE_` prefix for secrets. `TRADEBUILT_RECIPIENT_EMAIL` routes report copies and strategy-session requests and defaults to `daniel@tradebuilt.pro`. Legacy production names (`REPORT_RECIPIENT_EMAIL` or `EMAIL_TO`, `SMTP_USERNAME`/`SMTP_PASSWORD`, and `EMAIL_USER`/`EMAIL_PASS`) remain supported. Email-route logs report which variable names were detected without logging credentials or recipient values. The application defaults are centralized in `server/config.mjs`. For Gmail, use an app password for `SMTP_PASS`.
 
 ### Optional environment variables
 
