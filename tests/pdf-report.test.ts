@@ -62,12 +62,23 @@ for (const scenario of scenarios) {
     assert.match(source, /EXECUTIVE SUMMARY|The assessment identifies|The 63-point result|The 25-point result|The 94-point result/i);
     assert.match(source, /OVERALL BUSINESS RANKING/);
 
+    // Page one has exactly one horizontal stroke: the title divider beneath
+    // "Prepared for". Its rule must remain entirely above the large score's
+    // conservative font box so PDF viewers cannot render it through the score.
+    const firstPage = source.match(/stream\n([\s\S]*?)\nendstream/)?.[1] ?? '';
+    const horizontalRules = [...firstPage.matchAll(/([\d.]+) ([\d.]+) m ([\d.]+) \2 l S/g)];
+    assert.equal(horizontalRules.length, 1);
+    const dividerY = Number(horizontalRules[0][2]);
+    const scoreMatch = firstPage.match(new RegExp(`/F2 42 Tf 42 ([\\d.]+) Td \\(${scenario.score}/100\\)`));
+    const scoreY = Number(scoreMatch?.[1]);
+    assert.ok(Number.isFinite(dividerY) && Number.isFinite(scoreY));
+    assert.ok(scoreY + 42 < dividerY, `title divider at ${dividerY} intersects the score font box ending at ${scoreY + 42}`);
+
     // The ranking section is emitted once and flows at least 24 CSS pixels
     // (18 PDF points) below the fully rendered executive summary.
     assert.equal((source.match(/\/F2 10 Tf [^\n]*\(OVERALL BUSINESS RANKING/g) ?? []).length, 1);
     assert.equal((source.match(/This ranking reflects measured performance/g) ?? []).length, 1);
     if (!scenario.long && scenario.company === 'Reliable Roofing Co') {
-      const firstPage = source.match(/stream\n([\s\S]*?)\nendstream/)?.[1] ?? '';
       const summaryY = Number(firstPage.match(new RegExp(`/F1 10 Tf 42 ([\\d.]+) Td \\(The ${scenario.score}-point result`))?.[1]);
       const rankingY = Number(firstPage.match(/\/F2 10 Tf 42 ([\d.]+) Td \(OVERALL BUSINESS RANKING/)?.[1]);
       assert.ok(Number.isFinite(summaryY) && Number.isFinite(rankingY));

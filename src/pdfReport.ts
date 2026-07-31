@@ -21,6 +21,9 @@ const BOTTOM = 52;
 const CONTENT_WIDTH = RIGHT - LEFT;
 // CSS pixels convert to PDF points at 0.75pt per pixel (24px = 18pt).
 const RANKING_SECTION_SPACING = 18;
+// Keep the large score's full font box clear of the title divider. Without this
+// PDF-only spacing, the divider crosses the upper portion of the score glyphs.
+const TITLE_DIVIDER_TO_SCORE_SPACING = 24;
 
 // Widths from the PDF core Helvetica font metrics, in thousandths of an em.
 // PDF viewers use these same metrics, so wrapping is based on rendered width rather
@@ -207,6 +210,7 @@ export const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, 
   flow.paragraph(`${leadProfile.company} Business Health Report`, { size: 27, leading: 33, font: 'F2', color: '0.04 0.07 0.12', after: 8, section: 'Report title' });
   flow.paragraph(`Prepared for ${leadProfile.name}`, { size: 12, color: '0.35 0.39 0.45', after: 18 });
   flow.rule('Overview');
+  flow.gap(TITLE_DIVIDER_TO_SCORE_SPACING, 'Overview');
   flow.paragraph(`${results.overall}/100`, { size: 42, leading: 48, font: 'F2', color: '0.04 0.07 0.12', after: 2 });
   flow.paragraph(band.label, { size: 20, leading: 24, font: 'F2', color: '0.78 0.45 0.08' });
   const executiveSummaryFinalY = flow.paragraph(tradePlan.executiveSummary, { size: 10, leading: 15, after: 0, section: 'Executive summary' });
