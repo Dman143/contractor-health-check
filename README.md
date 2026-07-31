@@ -29,25 +29,25 @@ POST /api/strategy-session
 ```bash
 SMTP_USER=daniel@tradebuilt.pro
 SMTP_PASS=your-app-password
+SMTP_FROM_EMAIL=daniel@tradebuilt.pro
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_EHLO_DOMAIN=tradebuilt.pro
 OPENAI_API_KEY=your-openai-api-key
 TRADEBUILT_RECIPIENT_EMAIL=daniel@tradebuilt.pro
 ```
 
-`OPENAI_API_KEY` enables live AI-generated consulting insights. When it is absent, the server automatically returns a personalized, deterministic consulting plan derived from the assessment scores, so local development requires no `.env` file. `SMTP_USER` and `SMTP_PASS` are required for email delivery. Keep production credentials in encrypted environment variables; never use a `VITE_` prefix for secrets. `TRADEBUILT_RECIPIENT_EMAIL` routes report copies and strategy-session requests and defaults to `daniel@tradebuilt.pro`. Legacy production names (`REPORT_RECIPIENT_EMAIL` or `EMAIL_TO`, `SMTP_USERNAME`/`SMTP_PASSWORD`, and `EMAIL_USER`/`EMAIL_PASS`) remain supported. Email-route logs report which variable names were detected without logging credentials or recipient values. The application defaults are centralized in `server/config.mjs`. For Gmail, use an app password for `SMTP_PASS`.
+`OPENAI_API_KEY` enables live AI-generated consulting insights. When it is absent, the server automatically returns a personalized, deterministic consulting plan derived from the assessment scores, so local development requires no `.env` file. All eight SMTP variables shown above are required for email delivery. Keep production credentials in encrypted environment variables; never use a `VITE_` prefix for secrets. Runtime diagnostics report only each variable's presence, format validity, and load status; values are never logged. For Gmail, use an app password for `SMTP_PASS`; spaces copied from Google's grouped app-password display are normalized before authentication.
 
 ### Optional environment variables
 
 ```bash
 PORT=4174
 OPENAI_MODEL=gpt-5-mini
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_EHLO_DOMAIN=tradebuilt.pro
-REPORT_FROM_EMAIL=daniel@tradebuilt.pro
 ```
 
-`REPORT_FROM_EMAIL` defaults to `SMTP_USER`. The default SMTP configuration uses a secure connection to Gmail on port 465.
+The SMTP settings have no implicit production defaults so a deployment cannot silently use the wrong server or sender.
 
 ## Local development
 
