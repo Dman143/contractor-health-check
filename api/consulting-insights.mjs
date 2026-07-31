@@ -1,7 +1,7 @@
 import { handleRequest } from '../server/index.mjs';
 
-// Leave room for the optimized 18-second upstream attempt and response handling.
-// A retry is only used to recover from a failed transport attempt.
-export const maxDuration = 45;
+// OpenAI report generation can legitimately take around a minute. The route does
+// not impose a shorter application deadline; this is only an infrastructure cap.
+export const maxDuration = 130;
 
 export default handleRequest;
