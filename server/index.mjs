@@ -1,9 +1,8 @@
 import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import { createServer } from 'node:http';
-import net from 'node:net';
 import path from 'node:path';
-import tls from 'node:tls';
 import { fileURLToPath } from 'node:url';
+import nodemailer from 'nodemailer';
 import { brand, getConfig } from './config.mjs';
 import { createLocalConsultingInsights } from './consulting-fallback.mjs';
 
@@ -230,79 +229,73 @@ const handleConsultingInsights = async (request, response) => {
   }
 };
 
-const smtpRead = (socket) => new Promise((resolve, reject) => {
-  let buffer = '';
-  const cleanup = () => {
-    socket.off('data', onData);
-    socket.off('error', onError);
-  };
-  const onError = (error) => {
-    cleanup();
-    reject(error);
-  };
-  const onData = (chunk) => {
-    buffer += chunk.toString('utf8');
-    const lines = buffer.split(/\r?\n/).filter(Boolean);
-    const lastLine = lines.at(-1) ?? '';
-    if (/^\d{3} /.test(lastLine)) {
-      cleanup();
-      resolve(buffer);
-    }
-  };
-  socket.on('data', onData);
-  socket.once('error', onError);
+const smtpEnvironment = () => ({
+  SMTP_HOST: { configured: Boolean(process.env.SMTP_HOST), value: process.env.SMTP_HOST },
+  SMTP_PORT: { configured: Boolean(process.env.SMTP_PORT), value: process.env.SMTP_PORT },
+  SMTP_SECURE: { configured: Boolean(process.env.SMTP_SECURE), value: process.env.SMTP_SECURE },
+  SMTP_USER: { configured: Boolean(process.env.SMTP_USER), value: process.env.SMTP_USER },
+  SMTP_PASS: { configured: Boolean(process.env.SMTP_PASS), value: process.env.SMTP_PASS ? '[REDACTED]' : undefined },
+  SMTP_FROM_EMAIL: { configured: Boolean(process.env.SMTP_FROM_EMAIL), value: process.env.SMTP_FROM_EMAIL },
+  TRADEBUILT_RECIPIENT_EMAIL: { configured: Boolean(process.env.TRADEBUILT_RECIPIENT_EMAIL), value: process.env.TRADEBUILT_RECIPIENT_EMAIL },
 });
 
-const smtpCommand = async (socket, command, expectedCodes) => {
-  socket.write(`${command}\r\n`);
-  const response = await smtpRead(socket);
-  const code = Number(response.slice(0, 3));
-  if (!expectedCodes.includes(code)) throw new Error(`SMTP command failed with ${code}.`);
-  return response;
+const validateSmtpEnvironment = () => {
+  const missing = Object.entries(smtpEnvironment()).filter(([, detail]) => !detail.configured).map(([name]) => name);
+  const invalid = [];
+  if (process.env.SMTP_PORT && (!Number.isInteger(config.smtp.port) || config.smtp.port < 1 || config.smtp.port > 65535)) invalid.push('SMTP_PORT must be an integer between 1 and 65535');
+  if (process.env.SMTP_SECURE && !['true', 'false'].includes(process.env.SMTP_SECURE)) invalid.push('SMTP_SECURE must be exactly "true" or "false"');
+  if (process.env.SMTP_FROM_EMAIL && !emailPattern.test(process.env.SMTP_FROM_EMAIL)) invalid.push('SMTP_FROM_EMAIL must be a valid email address');
+  if (process.env.TRADEBUILT_RECIPIENT_EMAIL && !emailPattern.test(process.env.TRADEBUILT_RECIPIENT_EMAIL)) invalid.push('TRADEBUILT_RECIPIENT_EMAIL must be a valid email address');
+  if (missing.length || invalid.length) throw new Error([...missing.map((name) => `Missing ${name}`), ...invalid].join('; '));
 };
 
-const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc, attachment }) => {
-  if (!config.smtp.username) throw new Error('Missing SMTP username (SMTP_USER).');
-  if (!config.smtp.password) throw new Error('Missing SMTP password (SMTP_PASS).');
-  if (!config.smtp.fromEmail) throw new Error('Missing SMTP sender address (REPORT_FROM_EMAIL).');
+const smtpErrorDetail = (error) => ({
+  name: error instanceof Error ? error.name : typeof error,
+  message: errorMessage(error),
+  code: error?.code,
+  command: error?.command,
+  response: error?.response,
+  responseCode: error?.responseCode,
+  errno: error?.errno,
+  syscall: error?.syscall,
+  address: error?.address,
+  port: error?.port,
+  stack: error instanceof Error ? error.stack : undefined,
+});
 
-  const { host, port, secure } = config.smtp;
+const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc, attachment }) => {
+  validateSmtpEnvironment();
   const from = sanitizeHeader(config.smtp.fromEmail);
   const recipient = sanitizeHeader(to);
   const blindCopy = sanitizeHeader(bcc);
   const envelopeRecipients = [...new Set([recipient, blindCopy].filter(Boolean))];
   if (!envelopeRecipients.length || envelopeRecipients.some((address) => !emailPattern.test(address))) throw new Error('A valid email recipient is required.');
-  const mixedBoundary = `mixed-${Date.now().toString(36)}`;
-  const alternativeBoundary = `content-${Date.now().toString(36)}`;
-  const socket = secure ? tls.connect(port, host, { servername: host }) : net.connect(port, host);
-  socket.setTimeout(30_000, () => socket.destroy(new Error('SMTP connection timed out.')));
-
+  const transporter = nodemailer.createTransport({
+    host: config.smtp.host,
+    port: config.smtp.port,
+    secure: config.smtp.secure,
+    auth: { user: config.smtp.username, pass: config.smtp.password },
+    name: config.smtp.ehloDomain,
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 30_000,
+  });
   try {
-    await smtpRead(socket);
-    await smtpCommand(socket, `EHLO ${config.smtp.ehloDomain}`, [250]);
-    await smtpCommand(socket, 'AUTH LOGIN', [334]);
-    await smtpCommand(socket, Buffer.from(config.smtp.username).toString('base64'), [334]);
-    await smtpCommand(socket, Buffer.from(config.smtp.password).toString('base64'), [235]);
-    await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
-    for (const address of envelopeRecipients) await smtpCommand(socket, `RCPT TO:<${address}>`, [250, 251]);
-    await smtpCommand(socket, 'DATA', [354]);
-
-    const headers = [
-      `From: ${brand.emailSenderName} <${from}>`,
-      `To: ${recipient}`,
-      `Subject: ${sanitizeHeader(subject)}`,
-      replyTo ? `Reply-To: ${sanitizeHeader(replyTo)}` : '',
-      'MIME-Version: 1.0',
-      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-    ].filter(Boolean).join('\r\n');
-    const alternativeContent = `--${mixedBoundary}\r\nContent-Type: multipart/alternative; boundary="${alternativeBoundary}"\r\n\r\n--${alternativeBoundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${text}\r\n\r\n--${alternativeBoundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${html}\r\n\r\n--${alternativeBoundary}--`;
-    const attachmentContent = attachment ? `\r\n\r\n--${mixedBoundary}\r\nContent-Type: application/pdf; name="${sanitizeHeader(attachment.filename).replace(/["\\]/g, '-')}"\r\nContent-Disposition: attachment; filename="${sanitizeHeader(attachment.filename).replace(/["\\]/g, '-')}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${attachment.base64.match(/.{1,76}/g)?.join('\r\n') ?? ''}` : '';
-    const messageBody = `${headers}\r\n\r\n${alternativeContent}${attachmentContent}\r\n--${mixedBoundary}--`;
-    const message = `${messageBody.replace(/(^|\r\n)\./g, '$1..')}\r\n.`;
-    await smtpCommand(socket, message, [250]);
-    await smtpCommand(socket, 'QUIT', [221]);
+    console.error('[SMTP verification started]', { host: config.smtp.host, port: config.smtp.port, secure: config.smtp.secure, user: config.smtp.username });
+    await transporter.verify();
+    console.error('[SMTP verification succeeded]', { host: config.smtp.host, port: config.smtp.port });
+    const info = await transporter.sendMail({
+      from: { name: brand.emailSenderName, address: from }, to: recipient, bcc: blindCopy || undefined,
+      replyTo: replyTo ? sanitizeHeader(replyTo) : undefined, subject: sanitizeHeader(subject), text, html,
+      attachments: attachment ? [{ filename: sanitizeHeader(attachment.filename).replace(/["\\]/g, '-'), content: attachment.base64, encoding: 'base64', contentType: 'application/pdf' }] : [],
+    });
+    console.error('[SMTP delivery succeeded]', { messageId: info.messageId, accepted: info.accepted, rejected: info.rejected, response: info.response });
+    return info;
+  } catch (error) {
+    console.error('[SMTP connection/authentication/delivery failed]', smtpErrorDetail(error));
+    throw error;
   } finally {
-    socket.end();
+    transporter.close();
   }
 };
 
@@ -340,20 +333,14 @@ const logEmailRoute = (route, request, payload = {}) => {
     method: request.method,
     url: request.url,
     requestId: request.headers['x-request-id'] || request.headers['x-vercel-id'] || request.headers['x-render-request-id'],
-    smtpHost: config.smtp.host,
-    smtpPort: config.smtp.port,
-    smtpSecure: config.smtp.secure,
-    smtpUsernameConfigured: Boolean(config.smtp.username),
-    smtpUsernameSource: config.smtp.usernameSource,
-    smtpPasswordConfigured: Boolean(config.smtp.password),
-    smtpPasswordSource: config.smtp.passwordSource,
-    fromEmailConfigured: Boolean(config.smtp.fromEmail),
-    recipientSource: config.assessmentRecipientSource,
+    smtpEnvironment: smtpEnvironment(),
     ...payload,
   });
 };
 
 const handleEmailReport = async (request, response) => {
+  const requestId = request.headers['x-request-id'] || request.headers['x-vercel-id'] || request.headers['x-render-request-id'] || crypto.randomUUID();
+  const startedAt = Date.now();
   try {
     const payload = await readJsonBody(request);
     logEmailRoute('email-report', request, { attachmentBytes: payload.pdf?.base64?.length ?? 0 });
@@ -362,15 +349,18 @@ const handleEmailReport = async (request, response) => {
       return;
     }
     await sendSmtpEmail(formatReportEmail(payload));
-    jsonResponse(response, 200, { message: 'Report email sent.' });
+    console.error('[Email report route succeeded]', { requestId, durationMs: Date.now() - startedAt });
+    jsonResponse(response, 200, { message: 'Report email sent.', requestId });
   } catch (error) {
     const isBadRequest = requestErrorMessages.includes(error.message);
-    if (!isBadRequest) console.error('[Email report route failed]', { message: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
-    jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send report email.' });
+    if (!isBadRequest) console.error('[Email report route failed]', { requestId, durationMs: Date.now() - startedAt, smtpError: smtpErrorDetail(error) });
+    jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send report email.', requestId, ...(config.environment === 'development' && !isBadRequest ? { error: smtpErrorDetail(error) } : {}) });
   }
 };
 
 const handleStrategySession = async (request, response) => {
+  const requestId = request.headers['x-request-id'] || request.headers['x-vercel-id'] || request.headers['x-render-request-id'] || crypto.randomUUID();
+  const startedAt = Date.now();
   try {
     const payload = await readJsonBody(request);
     logEmailRoute('strategy-session', request);
@@ -386,11 +376,12 @@ const handleStrategySession = async (request, response) => {
       text: ['A contractor has requested a TradeBuilt strategy session.', '', ...details].join('\n'),
       html: `<main style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h1>New TradeBuilt strategy request</h1><ul>${details.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></main>`,
     });
-    jsonResponse(response, 200, { message: 'Strategy session request sent.' });
+    console.error('[Strategy session route succeeded]', { requestId, durationMs: Date.now() - startedAt });
+    jsonResponse(response, 200, { message: 'Strategy session request sent.', requestId });
   } catch (error) {
     const isBadRequest = requestErrorMessages.includes(error.message);
-    if (!isBadRequest) console.error('[Strategy session route failed]', { message: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
-    jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send strategy session request.' });
+    if (!isBadRequest) console.error('[Strategy session route failed]', { requestId, durationMs: Date.now() - startedAt, smtpError: smtpErrorDetail(error) });
+    jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send strategy session request.', requestId, ...(config.environment === 'development' && !isBadRequest ? { error: smtpErrorDetail(error) } : {}) });
   }
 };
 
