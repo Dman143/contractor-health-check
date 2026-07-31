@@ -1,10 +1,10 @@
 export const RESULTS_DISCLAIMER = 'Your results are only as accurate as the answers you provide.';
 
 export const PERFECT_SCORE_INTEGRITY_MESSAGE = [
-  'A perfect score is exceptionally rare.',
-  'A genuine 100/100 means your contracting business has world-class systems, predictable lead generation, strong financial controls, documented processes, and can continue growing even while you are away.',
-  'If that is genuinely the case, congratulations — you are among the very best contractors we have assessed.',
-  'If you selected 5/5 throughout without critically evaluating your business, we recommend retaking the assessment honestly. The more accurate your answers, the more valuable your report will be.',
+  'A 100/100 result is an exceptional achievement and is extremely uncommon.',
+  'If your answers accurately reflect consistent, well-documented performance across your business, congratulations — you have built an exceptional operation.',
+  'Because this assessment is self-reported, a 100/100 result should always be independently validated in practice through current records, team observations, customer outcomes, and performance over time.',
+  'We encourage every owner to answer thoughtfully and revisit any rating that is not yet supported by clear, repeatable evidence. Honest self-assessment makes your report more accurate, useful, and credible.',
 ] as const;
 
 export const isAllFivesAssessment = (answers: Record<number, number>, questionIds: readonly number[]) =>

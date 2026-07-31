@@ -66,8 +66,11 @@ for (const scenario of scenarios) {
     assert.match(source, /OVERALL BUSINESS RANKING/);
     assert.match(source, /Your results are only as accurate as the answers you provide/);
     if (scenario.score === 100) {
-      assert.match(source, /A perfect score is exceptionally rare/);
-      assert.match(source, /selected 5\/5 throughout without critically evaluating your business/);
+      assert.match(source, /exceptional achievement and is extremely uncommon/);
+      assert.match(source, /congratulations you have built an/);
+      assert.match(source, /exceptional operation/);
+      assert.match(source, /independently validated in practice/);
+      assert.match(source, /Honest self-assessment/);
     }
 
     // Page one has exactly one horizontal stroke: the title divider beneath

@@ -392,10 +392,10 @@ const formatReportEmail = (payload) => {
   const benchmarkLines = results.categories.map(({ category, score, industryAverage, difference }) => `${category}: Your Score ${score}% | Industry Average ${industryAverage}% | Difference ${difference >= 0 ? '+' : ''}${difference}`);
   const disclaimer = 'Your results are only as accurate as the answers you provide.';
   const perfectScoreMessage = results.isPerfectSelfReported ? [
-    'A perfect score is exceptionally rare.',
-    'A genuine 100/100 means your contracting business has world-class systems, predictable lead generation, strong financial controls, documented processes, and can continue growing even while you are away.',
-    'If that is genuinely the case, congratulations — you are among the very best contractors we have assessed.',
-    'If you selected 5/5 throughout without critically evaluating your business, we recommend retaking the assessment honestly. The more accurate your answers, the more valuable your report will be.',
+    'A 100/100 result is an exceptional achievement and is extremely uncommon.',
+    'If your answers accurately reflect consistent, well-documented performance across your business, congratulations — you have built an exceptional operation.',
+    'Because this assessment is self-reported, a 100/100 result should always be independently validated in practice through current records, team observations, customer outcomes, and performance over time.',
+    'We encourage every owner to answer thoughtfully and revisit any rating that is not yet supported by clear, repeatable evidence. Honest self-assessment makes your report more accurate, useful, and credible.',
   ] : [];
   const lines = [
     'TradeBuilt Business Health Report', disclaimer, '', ...perfectScoreMessage, ...(perfectScoreMessage.length ? [''] : []), `Date completed: ${completedDate}`, '', 'Business profile', ...leadLines, '', `Assessment score: ${results.overall}/100`, `Industry average: ${results.industryAverage}/100`, `Overall Business Ranking: ${results.ranking}`, results.rankingExplanation, '', 'Performance vs Industry', ...benchmarkLines, '', 'Executive Summary', tradePlan?.executiveSummary ?? '', '', 'Why each score matters', ...categoryInsightLines, '', 'Your biggest bottleneck', tradePlan?.bottleneck ?? '', '', 'Your biggest opportunity', tradePlan?.biggestOpportunity ?? '', '', 'Top 3 priorities by impact', ...(tradePlan?.priorities ?? []), '', 'Your 30-Day TradeBuilt Action Plan', ...actionPlanLines, '', 'Three quick wins under 30 minutes', ...(tradePlan?.quickWins ?? []), '', 'Biggest business risk if nothing changes', tradePlan?.risk ?? '', '', 'Estimated outcome if this plan is completed', tradePlan?.estimatedOutcome ?? '', '', 'Final Consultant Recommendation', tradePlan?.finalRecommendation ?? '',
