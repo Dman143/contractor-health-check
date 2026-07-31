@@ -76,7 +76,9 @@ const requestJson = async <T,>(url: string, payload: unknown, fallbackMessage: s
     body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
-    signal: AbortSignal.timeout(65_000),
+    // Allow the server to complete both 60-second OpenAI attempts. Existing UI state
+    // remains in its loading phase until this request settles.
+    signal: AbortSignal.timeout(125_000),
   });
   const body = await response.json().catch(() => null) as ({ message?: string } & T) | null;
   if (!response.ok) throw new Error(body?.message || fallbackMessage);

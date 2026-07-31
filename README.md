@@ -22,7 +22,7 @@ POST /api/email-report
 POST /api/strategy-session
 ```
 
-`/api/consulting-insights` sends the completed business profile, scorecard, strongest and weakest categories, and benchmark gaps to OpenAI and returns a structured consulting report. The API key and prompt remain on the server. `/api/email-report` sends the attached PDF to the contractor and blind-copies the configured TradeBuilt recipient. `/api/strategy-session` sends strategy requests to that recipient with the contractor's address set as the reply-to contact. The recipient defaults to `daniel@tradebuilt.pro`.
+`/api/consulting-insights` sends the completed business profile, scorecard, benchmark gaps, and compact category-grouped answers to OpenAI and returns a structured consulting report. The API key and prompt remain on the server. `/api/email-report` sends the attached PDF to the contractor and blind-copies the configured TradeBuilt recipient. `/api/strategy-session` sends strategy requests to that recipient with the contractor's address set as the reply-to contact. The recipient defaults to `daniel@tradebuilt.pro`.
 
 ### Production environment variables
 
