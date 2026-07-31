@@ -45,8 +45,12 @@ test('email routes use production-compatible SMTP variables and deliver to the i
   process.env.SMTP_USER = 'smtp-user@example.com';
   process.env.SMTP_PASS = 'app-password';
   process.env.SMTP_FROM_EMAIL = 'sender@example.com';
+  process.env.SMTP_EHLO_DOMAIN = 'tradebuilt.pro';
   process.env.TRADEBUILT_RECIPIENT_EMAIL = 'advisor@example.com';
-  const { handleRequest } = await import(`../server/index.mjs?email-test=${Date.now()}`);
+  const { handleRequest, smtpRuntimeReport } = await import(`../server/index.mjs?email-test=${Date.now()}`);
+  assert.deepEqual(smtpRuntimeReport(), Object.fromEntries([
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM_EMAIL', 'SMTP_EHLO_DOMAIN', 'TRADEBUILT_RECIPIENT_EMAIL',
+  ].map((name) => [name, { present: true, validFormat: true, loadedAtRuntime: true }])));
   const app = createServer(handleRequest);
   await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
   const appAddress = app.address();

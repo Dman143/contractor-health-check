@@ -250,24 +250,29 @@ const handleConsultingInsights = async (request, response) => {
   }
 };
 
-const smtpEnvironment = () => ({
-  SMTP_HOST: { configured: Boolean(process.env.SMTP_HOST), value: process.env.SMTP_HOST },
-  SMTP_PORT: { configured: Boolean(process.env.SMTP_PORT), value: process.env.SMTP_PORT },
-  SMTP_SECURE: { configured: Boolean(process.env.SMTP_SECURE), value: process.env.SMTP_SECURE },
-  SMTP_USER: { configured: Boolean(process.env.SMTP_USER), value: process.env.SMTP_USER },
-  SMTP_PASS: { configured: Boolean(process.env.SMTP_PASS), value: process.env.SMTP_PASS ? '[REDACTED]' : undefined },
-  SMTP_FROM_EMAIL: { configured: Boolean(process.env.SMTP_FROM_EMAIL), value: process.env.SMTP_FROM_EMAIL },
-  TRADEBUILT_RECIPIENT_EMAIL: { configured: Boolean(process.env.TRADEBUILT_RECIPIENT_EMAIL), value: process.env.TRADEBUILT_RECIPIENT_EMAIL },
+const hostnamePattern = /^(?=.{1,253}$)(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)*[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/i;
+const smtpHostPattern = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const smtpVariableChecks = () => ({
+  SMTP_HOST: Boolean(config.smtp.host) && (hostnamePattern.test(config.smtp.host) || smtpHostPattern.test(config.smtp.host)),
+  SMTP_PORT: Number.isInteger(config.smtp.port) && config.smtp.port >= 1 && config.smtp.port <= 65535,
+  SMTP_SECURE: ['true', 'false'].includes(config.smtp.secureRaw),
+  SMTP_USER: Boolean(config.smtp.username) && emailPattern.test(config.smtp.username),
+  SMTP_PASS: Boolean(config.smtp.password) && !/[\r\n]/.test(config.smtp.password),
+  SMTP_FROM_EMAIL: Boolean(config.smtp.fromEmail) && emailPattern.test(config.smtp.fromEmail),
+  SMTP_EHLO_DOMAIN: Boolean(config.smtp.ehloDomain) && hostnamePattern.test(config.smtp.ehloDomain),
+  TRADEBUILT_RECIPIENT_EMAIL: Boolean(config.assessmentRecipientEmail) && emailPattern.test(config.assessmentRecipientEmail),
 });
 
+export const smtpRuntimeReport = () => Object.fromEntries(Object.entries(smtpVariableChecks()).map(([name, valid]) => [name, {
+  present: Boolean(process.env[name]?.trim()),
+  validFormat: valid,
+  loadedAtRuntime: valid && Boolean(config.smtp[name === 'SMTP_HOST' ? 'host' : name === 'SMTP_PORT' ? 'port' : name === 'SMTP_SECURE' ? 'secureRaw' : name === 'SMTP_USER' ? 'username' : name === 'SMTP_PASS' ? 'password' : name === 'SMTP_FROM_EMAIL' ? 'fromEmail' : name === 'SMTP_EHLO_DOMAIN' ? 'ehloDomain' : undefined] ?? config.assessmentRecipientEmail),
+}]));
+
 const validateSmtpEnvironment = () => {
-  const missing = Object.entries(smtpEnvironment()).filter(([, detail]) => !detail.configured).map(([name]) => name);
-  const invalid = [];
-  if (process.env.SMTP_PORT && (!Number.isInteger(config.smtp.port) || config.smtp.port < 1 || config.smtp.port > 65535)) invalid.push('SMTP_PORT must be an integer between 1 and 65535');
-  if (process.env.SMTP_SECURE && !['true', 'false'].includes(process.env.SMTP_SECURE)) invalid.push('SMTP_SECURE must be exactly "true" or "false"');
-  if (process.env.SMTP_FROM_EMAIL && !emailPattern.test(process.env.SMTP_FROM_EMAIL)) invalid.push('SMTP_FROM_EMAIL must be a valid email address');
-  if (process.env.TRADEBUILT_RECIPIENT_EMAIL && !emailPattern.test(process.env.TRADEBUILT_RECIPIENT_EMAIL)) invalid.push('TRADEBUILT_RECIPIENT_EMAIL must be a valid email address');
-  if (missing.length || invalid.length) throw new Error([...missing.map((name) => `Missing ${name}`), ...invalid].join('; '));
+  const report = smtpRuntimeReport();
+  const failures = Object.entries(report).filter(([, result]) => !result.present || !result.validFormat || !result.loadedAtRuntime);
+  if (failures.length) throw new Error(failures.map(([name, result]) => `${name}: ${!result.present ? 'missing' : !result.validFormat ? 'invalid format' : 'not loaded at runtime'}`).join('; '));
 };
 
 const smtpErrorDetail = (error) => ({
@@ -302,7 +307,7 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc, attachment
     socketTimeout: 30_000,
   });
   try {
-    console.error('[SMTP verification started]', { host: config.smtp.host, port: config.smtp.port, secure: config.smtp.secure, user: config.smtp.username });
+    console.error('[SMTP verification started]', { environment: smtpRuntimeReport() });
     await transporter.verify();
     console.error('[SMTP verification succeeded]', { host: config.smtp.host, port: config.smtp.port });
     const info = await transporter.sendMail({
@@ -354,7 +359,7 @@ const logEmailRoute = (route, request, payload = {}) => {
     method: request.method,
     url: request.url,
     requestId: request.headers['x-request-id'] || request.headers['x-vercel-id'] || request.headers['x-render-request-id'],
-    smtpEnvironment: smtpEnvironment(),
+    smtpEnvironment: smtpRuntimeReport(),
     ...payload,
   });
 };
@@ -449,5 +454,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
       model: config.openai.model,
     });
+    console.error('[SMTP runtime environment]', smtpRuntimeReport());
   });
 }
