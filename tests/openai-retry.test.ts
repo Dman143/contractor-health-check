@@ -52,6 +52,9 @@ test('retries one timeout with the same idempotency key and a compact prompt', a
     const body = JSON.parse(requests[0].body as string);
     assert.doesNotMatch(body.input, /strongestCategories|weakestCategories|questionId|Response 1/);
     assert.match(body.input, /answersByCategory/);
+    assert.equal(body.reasoning.effort, 'minimal');
+    assert.equal(body.text.verbosity, 'low');
+    assert.ok(Buffer.byteLength(requests[0].body as string) < 4_500);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
