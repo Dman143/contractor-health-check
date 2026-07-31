@@ -69,6 +69,6 @@ test('uses an evidence-validation narrative for the all-5s assessment', () => {
   assert.match(insights.executiveSummary, /self-reported score of 100\/100/);
   assert.match(insights.executiveSummary, /not an independent audit/);
   assert.match(insights.bottleneck, /No bottleneck is evidenced/);
-  assert.match(insights.finalRecommendation, /Elite Performance Rating as self-reported/);
+  assert.match(insights.finalRecommendation, /Elite Contractor Performance Rating as self-reported/);
   assert.doesNotMatch(JSON.stringify(insights), /small company/i);
 });

@@ -58,8 +58,8 @@ test('detects only a complete 25-answer all-5s assessment', () => {
 
 test('maps every score-band boundary to the correct Performance Rating', () => {
   const expectations = [
-    [100, 'Elite'], [90, 'Elite'], [89, 'Excellent'], [80, 'Excellent'],
-    [79, 'Strong'], [70, 'Strong'], [69, 'Growth Ready'], [60, 'Growth Ready'],
+    [100, 'Elite Contractor'], [90, 'Elite Contractor'], [89, 'Excellent Contractor'], [80, 'Excellent Contractor'],
+    [79, 'Strong Contractor'], [70, 'Strong Contractor'], [69, 'Growth Ready'], [60, 'Growth Ready'],
     [59, 'Growth Constrained'], [50, 'Growth Constrained'], [49, 'Needs Attention'], [0, 'Needs Attention'],
   ] as const;
 

@@ -137,18 +137,18 @@ const emptyLeadProfile: LeadProfile = {
 
 const getScoreBand = (score: number): ScoreBand => {
   if (score >= 85) {
-    return { label: 'Scale Ready', description: 'Your business has strong fundamentals and is ready for managed growth, hiring, or premium positioning.' };
+    return { label: getPerformanceRating(score), description: 'Your business has strong fundamentals and is ready for managed growth, hiring, or premium positioning.' };
   }
 
   if (score >= 70) {
-    return { label: 'Healthy Operator', description: 'You have a solid base with a few constraints holding back smoother growth and owner freedom.' };
+    return { label: getPerformanceRating(score), description: 'You have a solid base with a few constraints holding back smoother growth and owner freedom.' };
   }
 
   if (score >= 50) {
-    return { label: 'Growth Constrained', description: 'Several operating areas need attention before growth becomes predictable and profitable.' };
+    return { label: getPerformanceRating(score), description: 'Several operating areas need attention before growth becomes predictable and profitable.' };
   }
 
-  return { label: 'Stabilize First', description: 'Focus on cash, delivery, and sales control before adding more volume or complexity.' };
+  return { label: getPerformanceRating(score), description: 'Focus on cash, delivery, and sales control before adding more volume or complexity.' };
 };
 
 const industryAverage = Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);

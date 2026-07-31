@@ -12,7 +12,7 @@ const profile = (company = 'Reliable Roofing Co'): LeadProfile => ({
   trade: 'General Contractor', teamSize: '6-10', monthlyRevenue: '$100k-$250k',
 });
 
-const performanceRating = (score: number): PerformanceRating => score >= 90 ? 'Elite' : score >= 80 ? 'Excellent' : score >= 70 ? 'Strong' : score >= 60 ? 'Growth Ready' : score >= 50 ? 'Growth Constrained' : 'Needs Attention';
+const performanceRating = (score: number): PerformanceRating => score >= 90 ? 'Elite Contractor' : score >= 80 ? 'Excellent Contractor' : score >= 70 ? 'Strong Contractor' : score >= 60 ? 'Growth Ready' : score >= 50 ? 'Growth Constrained' : 'Needs Attention';
 
 const results = (score: number): ResultsData => {
   const categoryScores = categories.map((category, index) => ({ category, score: Math.max(1, Math.min(100, score + index - 4)), industryAverage: industryBenchmarks[category], difference: score - industryBenchmarks[category] }));
