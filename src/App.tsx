@@ -10,8 +10,8 @@ import {
   teamSizeOptions,
   tradeOptions,
 } from './data';
-import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
-import { answerCurrentQuestion } from './assessment';
+import type { ActionPlanWeek, Category, LeadProfile, PerformanceRating, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
+import { answerCurrentQuestion, getPerformanceRating } from './assessment';
 import { createPdfReport } from './pdfReport';
 import { isAllFivesAssessment, PERFECT_SCORE_INTEGRITY_MESSAGE, RESULTS_DISCLAIMER } from './reportIntegrity';
 
@@ -153,17 +153,8 @@ const getScoreBand = (score: number): ScoreBand => {
 
 const industryAverage = Math.round(categories.reduce((sum, category) => sum + industryBenchmarks[category], 0) / categories.length);
 
-const getBusinessRanking = (score: number): BusinessRanking => {
-  if (score >= 90) return 'Top 10%';
-  if (score >= 80) return 'Top 25%';
-  if (score >= 72) return 'Above Average';
-  if (score >= 60) return 'Average';
-  if (score >= 45) return 'Below Average';
-  return 'Bottom 25%';
-};
-
-const getRankingExplanation = (overall: number, categoryScores: ResultsData['categories'], ranking: BusinessRanking) => {
-  if (overall === 100) return `${ranking} is based on the self-reported assessment score and TradeBuilt contractor benchmarks. It should be independently validated before being treated as an objective performance claim.`;
+const getPerformanceRatingExplanation = (overall: number, categoryScores: ResultsData['categories'], performanceRating: PerformanceRating) => {
+  if (overall === 100) return `${performanceRating} is based on the self-reported assessment score. It should be independently validated before being treated as an objective performance claim.`;
   const aboveBenchmark = categoryScores.filter(({ category, score }) => score >= industryBenchmarks[category]);
   const strongest = [...categoryScores].sort((a, b) => (b.score - industryBenchmarks[b.category]) - (a.score - industryBenchmarks[a.category]))[0];
   const delta = overall - industryAverage;
@@ -171,7 +162,7 @@ const getRankingExplanation = (overall: number, categoryScores: ResultsData['cat
   const proof = aboveBenchmark.length
     ? `${aboveBenchmark.length} of 8 operating categories meet or exceed their benchmark, led by ${strongest.category}`
     : `all eight operating categories remain below their benchmark, with ${strongest.category} closest to the peer standard`;
-  return `${ranking} reflects an overall score of ${overall}, ${comparison} the ${industryAverage}-point industry average; ${proof}.`;
+  return `${performanceRating} reflects an overall score of ${overall}, ${comparison} the ${industryAverage}-point industry average; ${proof}.`;
 };
 
 
@@ -207,13 +198,13 @@ export const calculateResults = (answers: Record<number, number>): ResultsData =
   });
 
   const overall = Math.round((answeredTotal / (questions.length * 5)) * 100);
-  const ranking = getBusinessRanking(overall);
+  const performanceRating = getPerformanceRating(overall);
 
   return {
     overall,
     industryAverage,
-    ranking,
-    rankingExplanation: getRankingExplanation(overall, categoryScores, ranking),
+    performanceRating,
+    performanceRatingExplanation: getPerformanceRatingExplanation(overall, categoryScores, performanceRating),
     categories: categoryScores,
     strengths: [...categoryScores].sort((a, b) => b.score - a.score).slice(0, 3),
     opportunities: [...categoryScores].sort((a, b) => a.score - b.score).slice(0, 3),
@@ -546,9 +537,9 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
               <h1 className="mt-4 text-3xl font-black md:text-4xl">{band.label}</h1>
               <p className="mt-3 leading-7 text-slate-300">{tradePlan.executiveSummary}</p>
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-4">
-                <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-200">Overall Business Ranking</p>
-                <p className="mt-2 text-3xl font-black text-white">{results.ranking}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{results.rankingExplanation}</p>
+                <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-200">Performance Rating</p>
+                <p className="mt-2 text-3xl font-black text-white">{results.performanceRating}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{results.performanceRatingExplanation}</p>
               </div>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 <button className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-6 py-4 font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:-translate-y-0.5" onClick={() => downloadPdfReport(leadProfile, results, band, tradePlan)}>

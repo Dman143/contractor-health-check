@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerCurrentQuestion, hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
+import { answerCurrentQuestion, getPerformanceRating, hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
 import { isAllFivesAssessment } from '../src/reportIntegrity.ts';
 
 const questionIds = Array.from({ length: 25 }, (_, index) => index + 1);
@@ -54,4 +54,14 @@ test('detects only a complete 25-answer all-5s assessment', () => {
   assert.equal(isAllFivesAssessment(perfectAnswers, questionIds), true);
   assert.equal(isAllFivesAssessment({ ...perfectAnswers, 12: 4 }, questionIds), false);
   assert.equal(isAllFivesAssessment(perfectAnswers, questionIds.slice(0, 24)), false);
+});
+
+test('maps every score-band boundary to the correct Performance Rating', () => {
+  const expectations = [
+    [100, 'Elite'], [90, 'Elite'], [89, 'Excellent'], [80, 'Excellent'],
+    [79, 'Strong'], [70, 'Strong'], [69, 'Growth Ready'], [60, 'Growth Ready'],
+    [59, 'Growth Constrained'], [50, 'Growth Constrained'], [49, 'Needs Attention'], [0, 'Needs Attention'],
+  ] as const;
+
+  expectations.forEach(([score, rating]) => assert.equal(getPerformanceRating(score), rating));
 });

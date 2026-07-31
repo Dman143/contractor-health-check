@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { categories, industryBenchmarks } from '../src/data.ts';
 import { createPdfReport, measurePdfText, wrapPdfText } from '../src/pdfReport.ts';
-import type { BusinessRanking, LeadProfile, ResultsData, TradeActionPlan } from '../src/types.ts';
+import type { PerformanceRating, LeadProfile, ResultsData, TradeActionPlan } from '../src/types.ts';
 
 const repeated = (text: string, count: number) => Array.from({ length: count }, () => text).join(' ');
 
@@ -12,13 +12,13 @@ const profile = (company = 'Reliable Roofing Co'): LeadProfile => ({
   trade: 'General Contractor', teamSize: '6-10', monthlyRevenue: '$100k-$250k',
 });
 
-const ranking = (score: number): BusinessRanking => score >= 90 ? 'Top 10%' : score >= 80 ? 'Top 25%' : score >= 72 ? 'Above Average' : score >= 60 ? 'Average' : score >= 45 ? 'Below Average' : 'Bottom 25%';
+const performanceRating = (score: number): PerformanceRating => score >= 90 ? 'Elite' : score >= 80 ? 'Excellent' : score >= 70 ? 'Strong' : score >= 60 ? 'Growth Ready' : score >= 50 ? 'Growth Constrained' : 'Needs Attention';
 
 const results = (score: number): ResultsData => {
   const categoryScores = categories.map((category, index) => ({ category, score: Math.max(1, Math.min(100, score + index - 4)), industryAverage: industryBenchmarks[category], difference: score - industryBenchmarks[category] }));
   return {
-    overall: score, industryAverage: 62, ranking: ranking(score),
-    rankingExplanation: `This ranking reflects measured performance across all operating categories at ${score} points while comparing the business with established contractor benchmarks.`,
+    overall: score, industryAverage: 62, performanceRating: performanceRating(score),
+    performanceRatingExplanation: `This performance rating reflects measured performance across all operating categories at ${score} points while comparing the business with established contractor benchmarks.`,
     categories: categoryScores, strengths: categoryScores.slice(-3), opportunities: categoryScores.slice(0, 3),
   };
 };
@@ -54,7 +54,7 @@ for (const scenario of scenarios) {
   test(`PDF safely flows the ${scenario.name} fixture`, async () => {
     const scenarioResults = results(scenario.score);
     scenarioResults.isPerfectSelfReported = scenario.score === 100;
-    const report = createPdfReport(profile(scenario.company), scenarioResults, { label: ranking(scenario.score), description: '' }, plan(scenario.score, scenario.long));
+    const report = createPdfReport(profile(scenario.company), scenarioResults, { label: performanceRating(scenario.score), description: '' }, plan(scenario.score, scenario.long));
     const source = await report.blob.text();
     if (process.env.WRITE_PDF_FIXTURES) {
       await mkdir(process.env.WRITE_PDF_FIXTURES, { recursive: true });
@@ -63,7 +63,7 @@ for (const scenario of scenarios) {
     assert.equal(source.startsWith('%PDF-1.4'), true);
     assert.equal((source.match(/\/Type \/Page\b/g) ?? []).length, report.pageCount);
     assert.match(source, /EXECUTIVE SUMMARY|The assessment identifies|The (?:25|63|94|100)-point result/i);
-    assert.match(source, /OVERALL BUSINESS RANKING/);
+    assert.match(source, /PERFORMANCE RATING/);
     assert.match(source, /Your results are only as accurate as the answers you provide/);
     if (scenario.score === 100) {
       assert.match(source, /exceptional achievement and is extremely uncommon/);
@@ -85,15 +85,15 @@ for (const scenario of scenarios) {
     assert.ok(Number.isFinite(dividerY) && Number.isFinite(scoreY));
     assert.ok(scoreY + 42 < dividerY, `title divider at ${dividerY} intersects the score font box ending at ${scoreY + 42}`);
 
-    // The ranking section is emitted once and flows at least 24 CSS pixels
+    // The performance rating section is emitted once and flows at least 24 CSS pixels
     // (18 PDF points) below the fully rendered executive summary.
-    assert.equal((source.match(/\/F2 10 Tf [^\n]*\(OVERALL BUSINESS RANKING/g) ?? []).length, 1);
-    assert.equal((source.match(/This ranking reflects measured performance/g) ?? []).length, 1);
+    assert.equal((source.match(/\/F2 10 Tf [^\n]*\(PERFORMANCE RATING/g) ?? []).length, 1);
+    assert.equal((source.match(/This performance rating reflects measured performance/g) ?? []).length, 1);
     if (!scenario.long && scenario.company === 'Reliable Roofing Co') {
       const summaryY = Number(firstPage.match(new RegExp(`/F1 10 Tf 42 ([\\d.]+) Td \\(The ${scenario.score}-point result`))?.[1]);
-      const rankingY = Number(firstPage.match(/\/F2 10 Tf 42 ([\d.]+) Td \(OVERALL BUSINESS RANKING/)?.[1]);
-      assert.ok(Number.isFinite(summaryY) && Number.isFinite(rankingY));
-      assert.ok(summaryY - rankingY >= 15 + 18, `ranking starts only ${summaryY - rankingY}pt below the summary baseline`);
+      const ratingY = Number(firstPage.match(/\/F2 10 Tf 42 ([\d.]+) Td \(PERFORMANCE RATING/)?.[1]);
+      assert.ok(Number.isFinite(summaryY) && Number.isFinite(ratingY));
+      assert.ok(summaryY - ratingY >= 15 + 18, `performance rating starts only ${summaryY - ratingY}pt below the summary baseline`);
     }
 
     // Every text baseline generated by the flow engine remains inside the body,

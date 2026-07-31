@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const dataSource = readFileSync(new URL('../src/data.ts', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const assessmentSource = readFileSync(new URL('../src/assessment.ts', import.meta.url), 'utf8');
 const serverSource = readFileSync(new URL('../server/index.mjs', import.meta.url), 'utf8');
 const serverConfigSource = readFileSync(new URL('../server/config.mjs', import.meta.url), 'utf8');
 const fallbackSource = readFileSync(new URL('../server/consulting-fallback.mjs', import.meta.url), 'utf8');
@@ -28,7 +29,7 @@ for (const category of requiredCategories) {
   }
 }
 
-for (const requiredText of ['Get My Business Health Score', 'Request a Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day TradeBuilt Action Plan', 'Your biggest bottleneck', 'Top 3 priorities', '3 quick wins under 30 minutes', 'Biggest business risk if nothing changes', 'Estimated outcome after 30 days', 'Performance vs Industry', 'Overall Business Ranking', 'Industry Average', 'Difference']) {
+for (const requiredText of ['Get My Business Health Score', 'Request a Strategy Session', 'Top 3 Strengths', 'Top 3 Opportunities', 'Your 30-Day TradeBuilt Action Plan', 'Your biggest bottleneck', 'Top 3 priorities', '3 quick wins under 30 minutes', 'Biggest business risk if nothing changes', 'Estimated outcome after 30 days', 'Performance vs Industry', 'Performance Rating', 'Industry Average', 'Difference']) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`Missing required UI text: ${requiredText}.`);
   }
@@ -46,8 +47,8 @@ for (const dashboardText of ['Preview of TradeBuilt Growth', 'Your TradeBuilt Da
   }
 }
 
-for (const ranking of ['Top 10%', 'Top 25%', 'Above Average', 'Average', 'Below Average', 'Bottom 25%']) {
-  if (!appSource.includes(`'${ranking}'`)) throw new Error(`Missing business ranking: ${ranking}.`);
+for (const rating of ['Elite', 'Excellent', 'Strong', 'Growth Ready', 'Growth Constrained', 'Needs Attention']) {
+  if (!assessmentSource.includes(`'${rating}'`)) throw new Error(`Missing performance rating: ${rating}.`);
 }
 
 for (const generatedSection of ['executiveSummary', 'bottleneck', 'biggestOpportunity', 'categoryInsights', 'whyItMatters', 'priorities', 'weeks', 'quickWins', 'risk', 'estimatedOutcome', 'finalRecommendation']) {

@@ -81,7 +81,7 @@ export const createLocalConsultingInsights = ({ leadProfile, results, assessment
       quickWins: ['Schedule an independent score review with a qualified adviser.', 'Select one current document or metric that supports each category score.', 'Book an owner-absence test and define the evidence that will confirm system resilience.'],
       risk: 'The relevant risk is overconfidence if self-reported ratings are treated as independently verified facts. No specific operational weakness can be inferred from the submitted answers alone.',
       estimatedOutcome: 'After 30 days, the business should have an evidence pack showing which strengths are independently supported and which ratings, if any, merit refinement.',
-      finalRecommendation: 'Retain the 100/100 assessment score and Top 10% benchmark position as self-reported. Validate both through records, team observation, customer outcomes, and an independent review before using them as objective claims.',
+      finalRecommendation: 'Retain the 100/100 assessment score and Elite Performance Rating as self-reported. Validate both through records, team observation, customer outcomes, and an independent review before using them as objective claims.',
     };
   }
   const rankedCategories = [...results.categories].sort((a, b) => a.score - b.score || a.category.localeCompare(b.category));
