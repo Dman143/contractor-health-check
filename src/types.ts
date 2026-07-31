@@ -41,6 +41,7 @@ export type ResultsData = {
   categories: CategoryScore[];
   strengths: CategoryScore[];
   opportunities: CategoryScore[];
+  isPerfectSelfReported?: boolean;
 };
 
 export type BusinessRanking = 'Top 10%' | 'Top 25%' | 'Above Average' | 'Average' | 'Below Average' | 'Bottom 25%';

@@ -39,6 +39,7 @@ const scenarios = [
   { name: 'low score', score: 25, company: 'Reliable Roofing Co', long: false },
   { name: 'average score', score: 63, company: 'Reliable Roofing Co', long: false },
   { name: 'high score', score: 94, company: 'Reliable Roofing Co', long: false },
+  { name: 'perfect self-reported score', score: 100, company: 'Reliable Roofing Co', long: false },
   { name: 'long company name', score: 63, company: repeated('Northwestern Commercial Construction and Restoration', 7), long: false },
   { name: 'long AI summary and action plan', score: 63, company: 'Reliable Roofing Co', long: true },
 ] as const;
@@ -51,7 +52,9 @@ test('wraps using rendered Helvetica widths and splits words wider than the cont
 
 for (const scenario of scenarios) {
   test(`PDF safely flows the ${scenario.name} fixture`, async () => {
-    const report = createPdfReport(profile(scenario.company), results(scenario.score), { label: ranking(scenario.score), description: '' }, plan(scenario.score, scenario.long));
+    const scenarioResults = results(scenario.score);
+    scenarioResults.isPerfectSelfReported = scenario.score === 100;
+    const report = createPdfReport(profile(scenario.company), scenarioResults, { label: ranking(scenario.score), description: '' }, plan(scenario.score, scenario.long));
     const source = await report.blob.text();
     if (process.env.WRITE_PDF_FIXTURES) {
       await mkdir(process.env.WRITE_PDF_FIXTURES, { recursive: true });
@@ -59,8 +62,13 @@ for (const scenario of scenarios) {
     }
     assert.equal(source.startsWith('%PDF-1.4'), true);
     assert.equal((source.match(/\/Type \/Page\b/g) ?? []).length, report.pageCount);
-    assert.match(source, /EXECUTIVE SUMMARY|The assessment identifies|The 63-point result|The 25-point result|The 94-point result/i);
+    assert.match(source, /EXECUTIVE SUMMARY|The assessment identifies|The (?:25|63|94|100)-point result/i);
     assert.match(source, /OVERALL BUSINESS RANKING/);
+    assert.match(source, /Your results are only as accurate as the answers you provide/);
+    if (scenario.score === 100) {
+      assert.match(source, /A perfect score is exceptionally rare/);
+      assert.match(source, /selected 5\/5 throughout without critically evaluating your business/);
+    }
 
     // Page one has exactly one horizontal stroke: the title divider beneath
     // "Prepared for". Its rule must remain entirely above the large score's

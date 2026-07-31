@@ -13,6 +13,7 @@ import {
 import type { ActionPlanWeek, BusinessRanking, Category, LeadProfile, ResultsData, StrategySessionRequest, TradeActionPlan } from './types';
 import { answerCurrentQuestion } from './assessment';
 import { createPdfReport } from './pdfReport';
+import { isAllFivesAssessment, PERFECT_SCORE_INTEGRITY_MESSAGE, RESULTS_DISCLAIMER } from './reportIntegrity';
 
 type Screen = 'landing' | 'lead-capture' | 'assessment' | 'results';
 
@@ -162,6 +163,7 @@ const getBusinessRanking = (score: number): BusinessRanking => {
 };
 
 const getRankingExplanation = (overall: number, categoryScores: ResultsData['categories'], ranking: BusinessRanking) => {
+  if (overall === 100) return `${ranking} is based on the self-reported assessment score and TradeBuilt contractor benchmarks. It should be independently validated before being treated as an objective performance claim.`;
   const aboveBenchmark = categoryScores.filter(({ category, score }) => score >= industryBenchmarks[category]);
   const strongest = [...categoryScores].sort((a, b) => (b.score - industryBenchmarks[b.category]) - (a.score - industryBenchmarks[a.category]))[0];
   const delta = overall - industryAverage;
@@ -190,7 +192,7 @@ const blobToBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
-const calculateResults = (answers: Record<number, number>): ResultsData => {
+export const calculateResults = (answers: Record<number, number>): ResultsData => {
   const answeredTotal = questions.reduce((sum, question) => sum + (answers[question.id] ?? 0), 0);
   const categoryScores = categories.map((category) => {
     const categoryQuestions = questions.filter((question) => question.category === category);
@@ -215,6 +217,7 @@ const calculateResults = (answers: Record<number, number>): ResultsData => {
     categories: categoryScores,
     strengths: [...categoryScores].sort((a, b) => b.score - a.score).slice(0, 3),
     opportunities: [...categoryScores].sort((a, b) => a.score - b.score).slice(0, 3),
+    isPerfectSelfReported: isAllFivesAssessment(answers, questions.map(({ id }) => id)),
   };
 };
 
@@ -516,6 +519,14 @@ function ResultsPage({ leadProfile, results, tradePlan, onLeadUpdate, onRestart,
     <main className="min-h-screen bg-slate-950 px-5 py-8 pb-28 text-white sm:px-6 md:py-10 md:pb-10">
       <a className="skip-link" href="#report-summary">Skip to report</a>
       <section className="mx-auto max-w-6xl" id="report-summary">
+        {results.isPerfectSelfReported && (
+          <aside className="mb-8 rounded-[1.75rem] border border-amber-300/35 bg-amber-300/10 p-6 shadow-xl shadow-black/20 md:p-8" aria-label="Perfect score integrity note">
+            {PERFECT_SCORE_INTEGRITY_MESSAGE.map((paragraph, index) => (
+              <p className={index === 0 ? 'text-xl font-black text-amber-200' : 'mt-4 leading-7 text-slate-200'} key={paragraph}>{paragraph}</p>
+            ))}
+          </aside>
+        )}
+        <p className="mb-8 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold text-slate-300">{RESULTS_DISCLAIMER}</p>
         <div className="mb-8 grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/[.05] p-5 text-sm text-slate-300 shadow-xl shadow-black/10 md:grid-cols-[1fr_auto] md:items-center md:p-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">Business profile</p>
