@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: tradebuilt-contractor-health-check
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: TRADEBUILT_RECIPIENT_EMAIL
+        value: daniel@tradebuilt.pro
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_EHLO_DOMAIN
+        value: tradebuilt.pro
+      - key: REPORT_FROM_EMAIL
+        value: daniel@tradebuilt.pro
