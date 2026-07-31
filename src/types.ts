@@ -44,7 +44,7 @@ export type ResultsData = {
   isPerfectSelfReported?: boolean;
 };
 
-export type PerformanceRating = 'Elite' | 'Excellent' | 'Strong' | 'Growth Ready' | 'Growth Constrained' | 'Needs Attention';
+export type PerformanceRating = 'Elite Contractor' | 'Excellent Contractor' | 'Strong Contractor' | 'Growth Ready' | 'Growth Constrained' | 'Needs Attention';
 
 export type ActionPlanWeek = {
   week: 1 | 2 | 3 | 4;

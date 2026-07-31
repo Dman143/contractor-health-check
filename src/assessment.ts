@@ -41,9 +41,9 @@ export const answerCurrentQuestion = (
   };
 };
 export const getPerformanceRating = (score: number): PerformanceRating => {
-  if (score >= 90) return 'Elite';
-  if (score >= 80) return 'Excellent';
-  if (score >= 70) return 'Strong';
+  if (score >= 90) return 'Elite Contractor';
+  if (score >= 80) return 'Excellent Contractor';
+  if (score >= 70) return 'Strong Contractor';
   if (score >= 60) return 'Growth Ready';
   if (score >= 50) return 'Growth Constrained';
   return 'Needs Attention';

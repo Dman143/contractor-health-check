@@ -62,7 +62,7 @@ test('email routes use production-compatible SMTP variables and deliver to the i
   try {
     const reportResponse = await post('/api/email-report?source=production', {
       leadProfile: { name: 'Pat', company: 'Pat Plumbing', email: 'pat@example.com' },
-      results: { overall: 72, industryAverage: 60, performanceRating: 'Strong', performanceRatingExplanation: 'Test', categories: [{ category: 'Pricing', score: 72, industryAverage: 60, difference: 12 }] },
+      results: { overall: 72, industryAverage: 60, performanceRating: 'Strong Contractor', performanceRatingExplanation: 'Test', categories: [{ category: 'Pricing', score: 72, industryAverage: 60, difference: 12 }] },
       pdf: { filename: 'tradebuilt-report.pdf', base64: Buffer.from('pdf').toString('base64') },
     });
     assert.equal(reportResponse.status, 200);

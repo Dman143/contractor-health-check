@@ -47,7 +47,7 @@ for (const dashboardText of ['Preview of TradeBuilt Growth', 'Your TradeBuilt Da
   }
 }
 
-for (const rating of ['Elite', 'Excellent', 'Strong', 'Growth Ready', 'Growth Constrained', 'Needs Attention']) {
+for (const rating of ['Elite Contractor', 'Excellent Contractor', 'Strong Contractor', 'Growth Ready', 'Growth Constrained', 'Needs Attention']) {
   if (!assessmentSource.includes(`'${rating}'`)) throw new Error(`Missing performance rating: ${rating}.`);
 }
 
