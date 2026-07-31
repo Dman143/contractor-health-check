@@ -35,7 +35,6 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => 
 const sanitizeHeader = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
 const categories = ['Pricing', 'Sales', 'Marketing', 'Cash Flow', 'Systems', 'Team', 'Operations', 'Customer Experience'];
 const requestErrorMessages = ['Content-Type must be application/json.', 'Request body must be valid JSON.', 'Request body is too large.'];
-const OPENAI_TIMEOUT_MS = 18_000;
 const OPENAI_MAX_ATTEMPTS = 2;
 
 const insightSchema = {
@@ -139,7 +138,7 @@ const isTimeoutError = (error) => {
   return error.cause && error.cause !== error ? isTimeoutError(error.cause) : false;
 };
 
-export const generateConsultingInsights = async (assessment) => {
+export const generateConsultingInsights = async (assessment, timings = {}) => {
   const generationStarted = performance.now();
   validateAssessment(assessment);
   // Read the key directly from the server process. Never expose its value in logs.
@@ -178,15 +177,32 @@ export const generateConsultingInsights = async (assessment) => {
   const idempotencyKey = crypto.randomUUID();
   let apiResponse;
   for (let attempt = 1; attempt <= OPENAI_MAX_ATTEMPTS; attempt += 1) {
+    const openAIStarted = performance.now();
+    timings.openAIStartMs ??= openAIStarted;
+    console.error('[Consulting insights timing: OpenAI start]', {
+      requestId: timings.requestId,
+      attempt,
+      at: new Date().toISOString(),
+      sinceRequestStartMs: timings.requestStarted === undefined ? undefined : Number((openAIStarted - timings.requestStarted).toFixed(1)),
+    });
     try {
       apiResponse = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: serializedRequest,
-        signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
+      });
+      timings.openAICompletionMs = performance.now();
+      timings.openAIDurationMs = (timings.openAIDurationMs ?? 0) + timings.openAICompletionMs - openAIStarted;
+      console.error('[Consulting insights timing: OpenAI completion]', {
+        requestId: timings.requestId,
+        attempt,
+        at: new Date().toISOString(),
+        attemptDurationMs: Number((timings.openAICompletionMs - openAIStarted).toFixed(1)),
+        openAITotalMs: Number(timings.openAIDurationMs.toFixed(1)),
       });
       break;
     } catch (error) {
+      timings.openAIDurationMs = (timings.openAIDurationMs ?? 0) + performance.now() - openAIStarted;
       const timedOut = isTimeoutError(error);
       console.error('[OpenAI request failed before response]', {
         attempt,
@@ -205,7 +221,8 @@ export const generateConsultingInsights = async (assessment) => {
     }
   }
 
-  const openAICompleted = performance.now();
+  const openAICompleted = timings.openAICompletionMs ?? performance.now();
+  const parsingStarted = performance.now();
   const responseBody = await apiResponse.text();
   console.error('[OpenAI response]', {
     status: apiResponse.status,
@@ -232,6 +249,12 @@ export const generateConsultingInsights = async (assessment) => {
   const insights = JSON.parse(outputText);
   if (insights.weeks?.some((week, index) => week.week !== index + 1)) throw new Error('OpenAI returned an invalid action-plan sequence.');
   if (insights.categoryInsights?.some((insight, index) => insight.category !== categories[index] || insight.score !== results.categories[index].score)) throw new Error('OpenAI returned score analysis that does not match the assessment.');
+  timings.parsingMs = performance.now() - parsingStarted;
+  console.error('[Consulting insights timing: parsing]', {
+    requestId: timings.requestId,
+    at: new Date().toISOString(),
+    durationMs: Number(timings.parsingMs.toFixed(1)),
+  });
   console.error('[Consulting insights timing]', {
     totalMs: Number((performance.now() - generationStarted).toFixed(1)),
     openAIRoundTripMs: Number((openAICompleted - generationStarted).toFixed(1)),
@@ -243,6 +266,8 @@ export const generateConsultingInsights = async (assessment) => {
 const handleConsultingInsights = async (request, response) => {
   const routeStarted = performance.now();
   const requestId = request.headers['x-request-id'] || request.headers['x-render-request-id'] || crypto.randomUUID();
+  const timings = { requestId, requestStarted: routeStarted };
+  console.error('[Consulting insights timing: request start]', { requestId, at: new Date().toISOString() });
   console.error('[Consulting insights route invoked]', {
     requestId,
     method: request.method,
@@ -254,10 +279,12 @@ const handleConsultingInsights = async (request, response) => {
     const assessment = await readJsonBody(request);
     const bodyReadMs = performance.now() - routeStarted;
     const generationStarted = performance.now();
-    const tradePlan = await generateConsultingInsights(assessment);
+    const tradePlan = await generateConsultingInsights(assessment, timings);
     const generationMs = performance.now() - generationStarted;
-    const timing = `body;dur=${bodyReadMs.toFixed(1)}, generate;dur=${generationMs.toFixed(1)}, total;dur=${(performance.now() - routeStarted).toFixed(1)}`;
-    console.error('[Consulting insights pipeline]', { requestId, bodyReadMs: Number(bodyReadMs.toFixed(1)), generationMs: Number(generationMs.toFixed(1)), totalMs: Number((performance.now() - routeStarted).toFixed(1)) });
+    const totalMs = performance.now() - routeStarted;
+    const timing = `body;dur=${bodyReadMs.toFixed(1)}, openai;dur=${(timings.openAIDurationMs ?? 0).toFixed(1)}, parse;dur=${(timings.parsingMs ?? 0).toFixed(1)}, generate;dur=${generationMs.toFixed(1)}, total;dur=${totalMs.toFixed(1)}`;
+    console.error('[Consulting insights timing: total]', { requestId, at: new Date().toISOString(), durationMs: Number(totalMs.toFixed(1)) });
+    console.error('[Consulting insights pipeline]', { requestId, bodyReadMs: Number(bodyReadMs.toFixed(1)), openAIMs: Number((timings.openAIDurationMs ?? 0).toFixed(1)), parsingMs: Number((timings.parsingMs ?? 0).toFixed(1)), generationMs: Number(generationMs.toFixed(1)), totalMs: Number(totalMs.toFixed(1)) });
     jsonResponse(response, 200, { tradePlan }, timing);
   } catch (error) {
     const isBadRequest = ['A complete assessment is required.', 'The business profile and overall score are required.', 'Assessment scores must be between 0 and 100.', 'All 25 assessment answers are required.', ...requestErrorMessages].includes(error.message);

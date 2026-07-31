@@ -48,6 +48,8 @@ test('retries one timeout with the same idempotency key and a compact prompt', a
     const result = await generateConsultingInsights(assessment);
     assert.equal(result.executiveSummary, 'Summary');
     assert.equal(requests.length, 2);
+    assert.equal(requests[0].signal, undefined, 'valid OpenAI responses must not be aborted by an application deadline');
+    assert.equal(requests[1].signal, undefined, 'retries must not reintroduce an application deadline');
     assert.equal((requests[0].headers as Record<string, string>)['Idempotency-Key'], (requests[1].headers as Record<string, string>)['Idempotency-Key']);
     const body = JSON.parse(requests[0].body as string);
     assert.doesNotMatch(body.input, /strongestCategories|weakestCategories|questionId|Response 1/);

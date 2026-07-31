@@ -10,11 +10,11 @@ The critical path is therefore:
 | --- | ---: | ---: | --- |
 | Browser request + server body parsing | <10 ms | <10 ms | Not a material bottleneck. |
 | Prompt preparation and JSON serialization | <2 ms | <2 ms | CPU cost is negligible, but the serialized request was 6,638 bytes. It is now 4,165 bytes (37% smaller) for the representative test assessment. |
-| OpenAI inference/network | ~60 s | <18 s target | Dominant bottleneck. The old request left reasoning and verbosity at model defaults. The optimized request explicitly uses minimal reasoning and low verbosity while retaining all 25 answers and the strict report schema. |
+| OpenAI inference/network | ~60 s | provider-dependent | Dominant bottleneck. The optimized request explicitly uses minimal reasoning and low verbosity while retaining all 25 answers and the strict report schema. No application timeout interrupts a valid response. |
 | OpenAI envelope + structured-output parsing | <2 ms | <2 ms | Two parses are necessary: one for the Responses API envelope and one for its JSON-schema output string. No intermediate parse/stringify remains. |
 | Response serialization + browser render | <10 ms | <10 ms | Not a material bottleneck. |
 | PDF generation | Not on critical path; typically <25 ms in the automated PDF suite | unchanged | It is synchronous, dependency-free, and only runs after the report is visible, so changing it cannot improve initial report latency. |
-| **Total visible report generation** | **~60 s** | **<18.1 s successful-request budget** | The OpenAI call remains effectively the whole critical path. |
+| **Total visible report generation** | **~60 s** | **provider-dependent** | The OpenAI call remains effectively the whole critical path; reliability takes precedence over an artificial latency target. |
 
 “Before” latency is the observed production figure supplied for this optimization;
 local stage timings and payload sizes use the representative assessment in
@@ -24,9 +24,10 @@ key was available in the development environment.
 ## Production measurement
 
 Every successful `/api/consulting-insights` response now emits a `Server-Timing`
-header with `body`, `generate`, `total`, and `serialize` durations. Server logs also
-record prompt preparation, OpenAI round-trip, response read/parse, and complete
-route timings, plus OpenAI's own `openai-processing-ms` response header when it is
+header with `body`, `openai`, `parse`, `generate`, `total`, and `serialize`
+durations. Server logs record timestamped request start, each OpenAI attempt start
+and completion, parsing, and total duration, plus OpenAI's own
+`openai-processing-ms` response header when it is
 available. This separates provider inference from application overhead without
 logging assessment contents or model output.
 
@@ -37,10 +38,11 @@ curl -i -H 'content-type: application/json' \
   --data @assessment.json https://tradebuilt.pro/api/consulting-insights
 ```
 
-The optimized call has an 18-second attempt deadline so a successful generation
-cannot silently consume the old 60-second window. One timeout retry is retained
-for transient transport failures; retry latency is failure recovery rather than a
-successful report-generation measurement.
+The route deliberately has no application-level OpenAI deadline. The 18-second
+deadline introduced in PR #40 aborted normal provider responses and then repeated
+the same mistake on retry. One retry remains for a timeout reported by the
+transport itself; the deployment's 130-second function window is the outer safety
+cap.
 
 ## Quality safeguards
 
