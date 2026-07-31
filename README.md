@@ -70,3 +70,8 @@ npm start
 ```
 
 The Node server serves the production build from `dist/` and handles both email endpoints.
+
+On Vercel, the files in `api/` expose the same relative `/api/*` URLs as deployed
+serverless functions. The browser therefore uses same-origin requests in both local
+development and production; the localhost address in `vite.config.ts` is only the
+Vite development proxy target and is not included in the production request URL.

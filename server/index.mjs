@@ -371,7 +371,7 @@ const serveStatic = (request, response) => {
   createReadStream(safePath).pipe(response);
 };
 
-createServer(async (request, response) => {
+export const handleRequest = async (request, response) => {
   response.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -393,11 +393,15 @@ createServer(async (request, response) => {
     return;
   }
   jsonResponse(response, 405, { message: 'Method not allowed.' });
-}).listen(config.port, () => {
-  console.log(`TradeBuilt server listening on http://localhost:${config.port}`);
-  console.error('[OpenAI config]', {
-    apiKeyReadFromProcessEnv: Object.hasOwn(process.env, 'OPENAI_API_KEY'),
-    apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
-    model: config.openai.model,
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  createServer(handleRequest).listen(config.port, () => {
+    console.log(`TradeBuilt server listening on http://localhost:${config.port}`);
+    console.error('[OpenAI config]', {
+      apiKeyReadFromProcessEnv: Object.hasOwn(process.env, 'OPENAI_API_KEY'),
+      apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+      model: config.openai.model,
+    });
   });
-});
+}
