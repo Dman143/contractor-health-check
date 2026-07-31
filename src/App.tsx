@@ -71,6 +71,7 @@ const getGrowthPhaseIndex = (score: number) => {
 };
 
 const requestJson = async <T,>(url: string, payload: unknown, fallbackMessage: string): Promise<T> => {
+  console.info('[TradeBuilt API request]', { method: 'POST', url });
   const response = await fetch(url, {
     body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' },
