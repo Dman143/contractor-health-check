@@ -18,6 +18,8 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
+      - key: SMTP_FROM_EMAIL
+        value: daniel@tradebuilt.pro
       - key: TRADEBUILT_RECIPIENT_EMAIL
         value: daniel@tradebuilt.pro
       - key: SMTP_HOST
@@ -28,5 +30,3 @@ services:
         value: "true"
       - key: SMTP_EHLO_DOMAIN
         value: tradebuilt.pro
-      - key: REPORT_FROM_EMAIL
-        value: daniel@tradebuilt.pro

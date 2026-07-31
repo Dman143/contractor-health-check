@@ -42,9 +42,10 @@ test('email routes use production-compatible SMTP variables and deliver to the i
   process.env.SMTP_HOST = '127.0.0.1';
   process.env.SMTP_PORT = String(smtpAddress.port);
   process.env.SMTP_SECURE = 'false';
-  process.env.SMTP_USERNAME = 'legacy-user@example.com';
-  process.env.SMTP_PASSWORD = 'app-password';
-  process.env.REPORT_RECIPIENT_EMAIL = 'advisor@example.com';
+  process.env.SMTP_USER = 'smtp-user@example.com';
+  process.env.SMTP_PASS = 'app-password';
+  process.env.SMTP_FROM_EMAIL = 'sender@example.com';
+  process.env.TRADEBUILT_RECIPIENT_EMAIL = 'advisor@example.com';
   const { handleRequest } = await import(`../server/index.mjs?email-test=${Date.now()}`);
   const app = createServer(handleRequest);
   await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
