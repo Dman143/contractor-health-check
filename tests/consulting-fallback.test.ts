@@ -60,3 +60,15 @@ test('changes the consulting narrative when the underlying answers change', () =
     createLocalConsultingInsights({ leadProfile, results, assessmentAnswers: revisedAnswers }).bottleneck,
   );
 });
+
+test('uses an evidence-validation narrative for the all-5s assessment', () => {
+  const perfectResults = { overall: 100, categories: categories.map((category) => ({ category, score: 100, industryAverage: 65, difference: 35 })) };
+  const perfectAnswers = assessmentAnswers.map((answer) => ({ ...answer, score: 5, response: 'Dialed in' }));
+  const insights = createLocalConsultingInsights({ leadProfile, results: perfectResults, assessmentAnswers: perfectAnswers });
+
+  assert.match(insights.executiveSummary, /self-reported score of 100\/100/);
+  assert.match(insights.executiveSummary, /not an independent audit/);
+  assert.match(insights.bottleneck, /No bottleneck is evidenced/);
+  assert.match(insights.finalRecommendation, /Top 10% benchmark position as self-reported/);
+  assert.doesNotMatch(JSON.stringify(insights), /small company/i);
+});

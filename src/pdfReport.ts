@@ -1,5 +1,6 @@
 import { benchmarkMethodology, industryBenchmarks } from './data.ts';
 import type { LeadProfile, ResultsData, TradeActionPlan } from './types.ts';
+import { PERFECT_SCORE_INTEGRITY_MESSAGE, RESULTS_DISCLAIMER } from './reportIntegrity.ts';
 
 type ScoreBand = { label: string; description: string };
 type FontName = 'F1' | 'F2';
@@ -213,6 +214,13 @@ export const createPdfReport = (leadProfile: LeadProfile, results: ResultsData, 
   flow.gap(TITLE_DIVIDER_TO_SCORE_SPACING, 'Overview');
   flow.paragraph(`${results.overall}/100`, { size: 42, leading: 48, font: 'F2', color: '0.04 0.07 0.12', after: 2 });
   flow.paragraph(band.label, { size: 20, leading: 24, font: 'F2', color: '0.78 0.45 0.08' });
+  flow.paragraph(RESULTS_DISCLAIMER, { size: 8, font: 'F2', color: '0.42 0.46 0.52', after: 14 });
+  if (results.isPerfectSelfReported) {
+    flow.heading('PERFECT SCORE INTEGRITY NOTE', 'Overview');
+    PERFECT_SCORE_INTEGRITY_MESSAGE.forEach((paragraph, index) => flow.paragraph(paragraph, {
+      size: index === 0 ? 10 : 9, font: index === 0 ? 'F2' : 'F1', leading: 13, after: 7, section: 'Perfect score integrity note',
+    }));
+  }
   const executiveSummaryFinalY = flow.paragraph(tradePlan.executiveSummary, { size: 10, leading: 15, after: 0, section: 'Executive summary' });
   flow.continueBelow(executiveSummaryFinalY, RANKING_SECTION_SPACING, 'Overview');
   flow.heading(`OVERALL BUSINESS RANKING  |  ${results.ranking}`, 'Overview');

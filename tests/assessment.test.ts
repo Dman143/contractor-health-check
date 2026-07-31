@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { answerCurrentQuestion, hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
+import { isAllFivesAssessment } from '../src/reportIntegrity.ts';
 
 const questionIds = Array.from({ length: 25 }, (_, index) => index + 1);
 
@@ -46,4 +47,11 @@ test('the final answer is validated from the same completed snapshot', () => {
   assert.equal(progress.isComplete, true);
   assert.equal(progress.answers[25], 4);
   assert.equal(progress.currentQuestionIndex, 24);
+});
+
+test('detects only a complete 25-answer all-5s assessment', () => {
+  const perfectAnswers = Object.fromEntries(questionIds.map((id) => [id, 5]));
+  assert.equal(isAllFivesAssessment(perfectAnswers, questionIds), true);
+  assert.equal(isAllFivesAssessment({ ...perfectAnswers, 12: 4 }, questionIds), false);
+  assert.equal(isAllFivesAssessment(perfectAnswers, questionIds.slice(0, 24)), false);
 });

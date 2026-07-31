@@ -57,6 +57,33 @@ const rankAnswers = (answers, direction = 'asc') => [...answers].sort((a, b) => 
 });
 
 export const createLocalConsultingInsights = ({ leadProfile, results, assessmentAnswers = [] }) => {
+  if (assessmentAnswers.length === 25 && assessmentAnswers.every(({ score }) => score === 5)) {
+    const company = leadProfile.company?.trim() || 'Your business';
+    const executiveSummary = `${company} reported 5/5 across all 25 practices, producing a self-reported score of 100/100. This indicates world-class capability if the responses are supported by current, repeatable evidence. The assessment itself is not an independent audit, so the appropriate next step is validation—not inventing weaknesses or declaring the business objectively perfect.`;
+    return {
+      executiveSummary,
+      context: executiveSummary,
+      bottleneck: 'No bottleneck is evidenced by the submitted answers. Independent validation is the priority before drawing stronger conclusions from an exceptionally rare self-reported result.',
+      biggestOpportunity: 'Convert the self-reported result into a defensible operating benchmark by verifying it against financial records, lead-generation data, documented processes, team execution, and owner-absence tests.',
+      categoryInsights: results.categories.map((item) => ({
+        category: item.category,
+        score: item.score,
+        whyItMatters: categoryGuidance[item.category].consequence,
+        diagnosis: 'The 100% result reflects a self-reported 5/5 for every assessed practice. Treat this as a claim to validate with operating records, team evidence, and outcomes rather than independent proof of performance.',
+      })),
+      priorities: ['1. Evidence validation: map every 5/5 response to a current record, metric, process, or observed outcome.', '2. Independent challenge: have team members and an external adviser test whether the claimed standards are repeatable.', '3. Resilience test: confirm that core systems continue to perform while the owner is away.'],
+      weeks: [
+        { week: 1, title: 'Validate the score against operating evidence', focusCategories: ['Pricing', 'Sales', 'Marketing'], actions: ['Gather current dashboards, financial reports, process documents, and lead-source records that support the 5/5 responses.', 'Ask accountable team members to independently rate the same practices and record any differences.', 'Document the evidence standard used to confirm each category rather than relying on owner perception alone.'] },
+        { week: 2, title: 'Test system resilience without the owner', focusCategories: ['Systems', 'Team', 'Operations'], actions: ['Delegate a complete operating cycle using the documented process and observe exceptions without intervening early.', 'Record where decisions, approvals, or customer updates still depend on owner knowledge.', 'Review the test with the team and update documentation only where the evidence identifies a gap.'] },
+        { week: 3, title: 'Verify financial and growth predictability', focusCategories: ['Pricing', 'Marketing', 'Cash Flow'], actions: ['Reconcile quoted margin, live job performance, and completed-job margin across a representative sample.', 'Trace recent qualified leads to source, conversion, acquisition cost, and forecast assumptions.', 'Compare the cash forecast with actual receipts and commitments, recording variance without presuming a weakness.'] },
+        { week: 4, title: 'Complete an independent benchmark review', focusCategories: ['Customer Experience', 'Sales', 'Operations'], actions: ['Invite an external adviser or qualified peer to challenge the supporting evidence for each 5/5 response.', 'Confirm that customer feedback, delivery records, and sales data support the self-reported standards.', 'Publish the validated strengths and any evidence-based refinements with owners and review dates.'] },
+      ],
+      quickWins: ['Schedule an independent score review with a qualified adviser.', 'Select one current document or metric that supports each category score.', 'Book an owner-absence test and define the evidence that will confirm system resilience.'],
+      risk: 'The relevant risk is overconfidence if self-reported ratings are treated as independently verified facts. No specific operational weakness can be inferred from the submitted answers alone.',
+      estimatedOutcome: 'After 30 days, the business should have an evidence pack showing which strengths are independently supported and which ratings, if any, merit refinement.',
+      finalRecommendation: 'Retain the 100/100 assessment score and Top 10% benchmark position as self-reported. Validate both through records, team observation, customer outcomes, and an independent review before using them as objective claims.',
+    };
+  }
   const rankedCategories = [...results.categories].sort((a, b) => a.score - b.score || a.category.localeCompare(b.category));
   const priorities = rankedCategories.slice(0, 3);
   const strongest = [...results.categories].sort((a, b) => b.score - a.score || a.category.localeCompare(b.category))[0];
