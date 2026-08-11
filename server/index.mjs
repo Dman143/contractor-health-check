@@ -374,39 +374,22 @@ const sendSmtpEmail = async ({ subject, text, html, replyTo, to, bcc, attachment
 };
 
 const formatReportEmail = (payload) => {
-  const { leadProfile, results, actionPlan = [], tradePlan, completedAt } = payload;
-  const completedDate = new Date(completedAt ?? Date.now()).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
-  const subjectName = leadProfile.company || leadProfile.name || 'Contractor';
-  const leadLines = [
-    `Name: ${leadProfile.name || 'Not provided'}`,
-    `Company: ${leadProfile.company || 'Not provided'}`,
-    `Email: ${leadProfile.email || 'Not provided'}`,
-    `Phone: ${leadProfile.phone || 'Not provided'}`,
-    `Trade: ${leadProfile.trade || 'Not provided'}`,
-    `Team size: ${leadProfile.teamSize || 'Not provided'}`,
-    `Monthly revenue: ${leadProfile.monthlyRevenue || 'Not provided'}`,
-    `Message: ${leadProfile.message || 'Not provided'}`,
-  ];
-  const categoryInsightLines = (tradePlan?.categoryInsights ?? []).map(({ category, score, whyItMatters, diagnosis }) => `${category}: ${score}% — Why it matters: ${whyItMatters} Consultant diagnosis: ${diagnosis}`);
-  const actionPlanLines = actionPlan.flatMap(({ week, title, actions }) => ['', `Week ${week}: ${title}`, ...actions.map((step, index) => `${index + 1}. ${step}`)]);
-  const benchmarkLines = results.categories.map(({ category, score, industryAverage, difference }) => `${category}: Your Score ${score}% | Industry Average ${industryAverage}% | Difference ${difference >= 0 ? '+' : ''}${difference}`);
-  const disclaimer = 'Your results are only as accurate as the answers you provide.';
-  const perfectScoreMessage = results.isPerfectSelfReported ? [
-    'A 100/100 result is an exceptional achievement and is extremely uncommon.',
-    'If your answers accurately reflect consistent, well-documented performance across your business, congratulations — you have built an exceptional operation.',
-    'Because this assessment is self-reported, a 100/100 result should always be independently validated in practice through current records, team observations, customer outcomes, and performance over time.',
-    'We encourage every owner to answer thoughtfully and revisit any rating that is not yet supported by clear, repeatable evidence. Honest self-assessment makes your report more accurate, useful, and credible.',
-  ] : [];
+  const { leadProfile, results, context = {}, completedAt } = payload;
+  const completedDate = new Date(completedAt ?? Date.now()).toLocaleString('en-US');
+  const trackLines = (results.tracks ?? []).map(({ track, score }) => `${track}: ${score}/100`);
   const lines = [
-    'TradeBuilt Business Health Report', disclaimer, '', ...perfectScoreMessage, ...(perfectScoreMessage.length ? [''] : []), `Date completed: ${completedDate}`, '', 'Business profile', ...leadLines, '', `Assessment score: ${results.overall}/100`, `Industry average: ${results.industryAverage}/100`, `Performance Rating: ${results.performanceRating}`, results.performanceRatingExplanation, '', 'Performance vs Industry', ...benchmarkLines, '', 'Executive Summary', tradePlan?.executiveSummary ?? '', '', 'Why each score matters', ...categoryInsightLines, '', 'Your biggest bottleneck', tradePlan?.bottleneck ?? '', '', 'Your biggest opportunity', tradePlan?.biggestOpportunity ?? '', '', 'Top 3 priorities by impact', ...(tradePlan?.priorities ?? []), '', 'Your 30-Day TradeBuilt Action Plan', ...actionPlanLines, '', 'Three quick wins under 30 minutes', ...(tradePlan?.quickWins ?? []), '', 'Biggest business risk if nothing changes', tradePlan?.risk ?? '', '', 'Estimated outcome if this plan is completed', tradePlan?.estimatedOutcome ?? '', '', 'Final Consultant Recommendation', tradePlan?.finalRecommendation ?? '',
+    'TradeBuilt Contractor Health Check', results.assessmentVersion, `Completed: ${completedDate}`, '',
+    `Prepared for: ${leadProfile.name || leadProfile.company}`, `Email: ${leadProfile.email}`,
+    `Desired model: ${context.desiredModel || 'Not supplied'}`, `Team: ${context.teamSituation || 'Not supplied'}`,
+    `Priority: ${context.priority || 'Not supplied'}`, '', `Contractor Health Score: ${results.overall}/100`,
+    results.disclaimer, '', 'Six health tracks', ...trackLines, '', 'Strongest areas', ...(results.strengths ?? []),
+    '', 'Weakest areas', ...(results.weaknesses ?? []), '', 'Likely risks', ...(results.risks ?? []),
+    '', 'Priority investigation areas', ...(results.investigationPriorities ?? []), '', 'Areas requiring deeper evidence', ...(results.deeperEvidence ?? []),
+    '', 'Next step', 'A paid TradeBuilt diagnostic can investigate evidence and root causes before recommendations or implementation.',
   ];
-  const section = (title, items) => `<div style="margin-top:28px"><h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h2><ul style="margin:0;padding-left:20px;color:#334155;line-height:1.7">${items.map((item) => `<li style="margin-bottom:8px">${escapeHtml(item)}</li>`).join('')}</ul></div>`;
-  const actionPlanHtml = actionPlan.map(({ week, title, actions }) => `<div style="margin-top:16px;padding:20px;border-radius:14px;background:#0f172a;color:#fff"><p style="margin:0;color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:1.5px">WEEK ${escapeHtml(week)}</p><h3 style="margin:7px 0 12px;font-size:17px">${escapeHtml(title)}</h3><ol style="margin:0;padding-left:20px;color:#cbd5e1;line-height:1.65">${actions.map((action) => `<li style="margin-bottom:7px">${escapeHtml(action)}</li>`).join('')}</ol></div>`).join('');
-  const planSection = (title, content) => content ? `<div style="margin-top:20px;padding:18px;border-left:4px solid #fbbf24;background:#f8fafc"><h3 style="margin:0 0 8px;color:#0f172a;font-size:16px">${escapeHtml(title)}</h3><p style="margin:0;color:#475569;line-height:1.65">${escapeHtml(content)}</p></div>` : '';
-  const integrityHtml = perfectScoreMessage.length ? section('Perfect score integrity note', perfectScoreMessage) : '';
-  const html = `<!doctype html><html><body style="margin:0;background:#e2e8f0;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">A new TradeBuilt assessment is ready for review.</div><main style="max-width:680px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden"><header style="padding:32px 36px;background:#0f172a;color:#fff"><p style="margin:0 0 18px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px">TRADEBUILT</p><h1 style="margin:0;font-size:28px">Business Health Report</h1><p style="margin:10px 0 0;color:#cbd5e1">Prepared for ${escapeHtml(subjectName)} on ${escapeHtml(completedDate)}</p></header><div style="padding:32px 36px"><div style="padding:24px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0"><p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px">OVERALL BUSINESS HEALTH SCORE</p><p style="margin:8px 0 0;color:#0f172a;font-size:42px;font-weight:800">${escapeHtml(results.overall)}<span style="font-size:18px;color:#64748b">/100</span></p><p style="margin:14px 0 5px;color:#059669;font-size:12px;font-weight:700;letter-spacing:1px">PERFORMANCE RATING</p><p style="margin:0;color:#0f172a;font-size:24px;font-weight:800">${escapeHtml(results.performanceRating)}</p></div><p style="margin:20px 0;color:#475569;font-size:13px;font-weight:700">${escapeHtml(disclaimer)}</p>${integrityHtml}${section('Contact and business profile', leadLines)}${section('Performance vs Industry — Your Score | Industry Average | Difference', benchmarkLines)}${planSection('Executive Summary', tradePlan?.executiveSummary)}${section('Why each score matters', categoryInsightLines)}${planSection('Your biggest bottleneck', tradePlan?.bottleneck)}${planSection('Your biggest opportunity', tradePlan?.biggestOpportunity)}${section('Top 3 priorities by impact', tradePlan?.priorities ?? [])}<div style="margin-top:30px"><h2 style="margin:0 0 4px;font-size:22px;color:#0f172a">Your 30-Day TradeBuilt Action Plan</h2>${actionPlanHtml}${section('Three quick wins under 30 minutes', tradePlan?.quickWins ?? [])}${planSection('Biggest business risk if nothing changes', tradePlan?.risk)}${planSection('Estimated outcome if this plan is completed', tradePlan?.estimatedOutcome)}${planSection('Final Consultant Recommendation', tradePlan?.finalRecommendation)}</div><p style="margin:32px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;line-height:1.6">The complete PDF report is attached for review.</p></div></main></body></html>`;
-
-  return { subject: `Your TradeBuilt Business Health Report - ${subjectName}`, text: lines.join('\n'), html, replyTo: config.assessmentRecipientEmail, to: leadProfile.email, bcc: config.assessmentRecipientEmail, attachment: payload.pdf };
+  const list = (title, values) => `<h2>${escapeHtml(title)}</h2><ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;max-width:680px;margin:24px auto;color:#0f172a"><h1>TradeBuilt Contractor Health Check</h1><p><strong>${escapeHtml(results.overall)}/100</strong></p><p>${escapeHtml(results.disclaimer)}</p>${list('Six health tracks', trackLines)}${list('Strongest areas', results.strengths ?? [])}${list('Weakest areas', results.weaknesses ?? [])}${list('Likely risks', results.risks ?? [])}${list('Priority investigation areas', results.investigationPriorities ?? [])}${list('Areas requiring deeper evidence', results.deeperEvidence ?? [])}<h2>Next step</h2><p>A paid TradeBuilt diagnostic can investigate evidence and root causes before recommendations or implementation.</p></body></html>`;
+  return { subject: `Your TradeBuilt Contractor Health Check - ${leadProfile.company || leadProfile.name}`, text: lines.join('\n'), html, replyTo: config.assessmentRecipientEmail, to: leadProfile.email, bcc: config.assessmentRecipientEmail, attachment: payload.pdf };
 };
 
 const logEmailRoute = (route, request, payload = {}) => {
@@ -438,6 +421,25 @@ const handleEmailReport = async (request, response) => {
     if (!isBadRequest) console.error('[Email report route failed]', { requestId, durationMs: Date.now() - startedAt, smtpError: smtpErrorDetail(error) });
     jsonResponse(response, isBadRequest ? 400 : 500, { message: isBadRequest ? error.message : 'Unable to send report email.', requestId, ...(config.environment === 'development' && !isBadRequest ? { error: smtpErrorDetail(error) } : {}) });
   }
+};
+
+const handleEngineIngestion = async (request, response) => {
+  try {
+    const payload = await readJsonBody(request);
+    if (payload.assessmentVersion !== 'tradebuilt-contractor-health-check-v2.0' || payload.product !== 'TRADEBUILT' || !payload.submissionId || !Array.isArray(payload.answers)) {
+      jsonResponse(response, 400, { message: 'A valid TradeBuilt V2 submission is required.' }); return;
+    }
+    const endpoint = process.env.TRADEBUILT_ENGINE_INGESTION_URL;
+    if (!endpoint) { jsonResponse(response, 202, { accepted: false, nonBlocking: true }); return; }
+    let delivered = false;
+    for (let attempt = 0; attempt < 2 && !delivered; attempt += 1) {
+      try {
+        const upstream = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':`${payload.assessmentVersion}:${payload.submissionId}`}, body:JSON.stringify(payload), signal:AbortSignal.timeout(8_000) });
+        delivered = upstream.ok || upstream.status === 409;
+      } catch { /* completion remains non-blocking */ }
+    }
+    jsonResponse(response, 202, { accepted: delivered, nonBlocking: true });
+  } catch (error) { jsonResponse(response, 202, { accepted:false, nonBlocking:true, message:errorMessage(error) }); }
 };
 
 const handleStrategySession = async (request, response) => {
@@ -489,6 +491,10 @@ export const handleRequest = async (request, response) => {
   }
   if (request.method === 'POST' && pathname === '/api/email-report') {
     await handleEmailReport(request, response);
+    return;
+  }
+  if (request.method === 'POST' && pathname === '/api/engine-ingestion') {
+    await handleEngineIngestion(request, response);
     return;
   }
   if (request.method === 'POST' && pathname === '/api/strategy-session') {
