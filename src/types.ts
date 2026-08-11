@@ -1,79 +1,10 @@
-export type Category =
-  | 'Pricing'
-  | 'Sales'
-  | 'Marketing'
-  | 'Cash Flow'
-  | 'Systems'
-  | 'Team'
-  | 'Operations'
-  | 'Customer Experience';
+export const ASSESSMENT_VERSION = 'tradebuilt-contractor-health-check-v2.0' as const;
 
-export type Question = {
-  id: number;
-  category: Category;
-  prompt: string;
-};
-
-export type CategoryScore = {
-  category: Category;
-  score: number;
-  industryAverage: number;
-  difference: number;
-  description?: string;
-};
-
-export type LeadProfile = {
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  message: string;
-  trade: string;
-  teamSize: string;
-  monthlyRevenue: string;
-};
-
-export type ResultsData = {
-  overall: number;
-  industryAverage: number;
-  performanceRating: PerformanceRating;
-  performanceRatingExplanation: string;
-  categories: CategoryScore[];
-  strengths: CategoryScore[];
-  opportunities: CategoryScore[];
-  isPerfectSelfReported?: boolean;
-};
-
-export type PerformanceRating = 'Elite Contractor' | 'Excellent Contractor' | 'Strong Contractor' | 'Growth Ready' | 'Growth Constrained' | 'Needs Attention';
-
-export type ActionPlanWeek = {
-  week: 1 | 2 | 3 | 4;
-  title: string;
-  focusCategories: Category[];
-  actions: string[];
-};
-
-export type CategoryConsultingInsight = {
-  category: Category;
-  score: number;
-  whyItMatters: string;
-  diagnosis: string;
-};
-
-export type TradeActionPlan = {
-  executiveSummary: string;
-  bottleneck: string;
-  biggestOpportunity: string;
-  categoryInsights: CategoryConsultingInsight[];
-  priorities: string[];
-  weeks: ActionPlanWeek[];
-  quickWins: string[];
-  risk: string;
-  estimatedOutcome: string;
-  context: string;
-  finalRecommendation: string;
-};
-
-export type StrategySessionRequest = Pick<LeadProfile, 'name' | 'company' | 'email' | 'phone' | 'message'> & {
-  submittedAt?: string;
-};
+export type HealthTrack = 'Delivery & Workmanship' | 'Client Experience & Reputation' | 'Commercial Control' | 'Financial Control' | 'Demand & Positioning' | 'Capacity & Direction';
+export type RawAnswer = string | number | boolean | null;
+export type Question = { id: string; track: HealthTrack; prompt: string; type: 'SCALE' | 'SINGLE_SELECT' | 'TEXT'; scored: boolean; conditional?: 'HAS_TEAM'; options: readonly { value: RawAnswer; label: string }[] };
+export type Answers = Record<string, RawAnswer>;
+export type LeadProfile = { name: string; company: string; email: string; phone: string; trade: string };
+export type BusinessContext = { desiredModel: string; teamSituation: string; ownerReliance: string; priority: string };
+export type TrackScore = { track: HealthTrack; score: number; applicableEvidence: number };
+export type ResultsData = { assessmentVersion: typeof ASSESSMENT_VERSION; overall: number; tracks: TrackScore[]; strengths: HealthTrack[]; weaknesses: HealthTrack[]; risks: string[]; investigationPriorities: string[]; deeperEvidence: string[]; disclaimer: string };

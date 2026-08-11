@@ -5,6 +5,14 @@
 :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: dark; font-synthesis: none; text-rendering: optimizeLegibility; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: #020617; -webkit-font-smoothing: antialiased; }
+main { min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem; color: #e2e8f0; }
+.card { width: min(760px, 100%); box-sizing: border-box; padding: clamp(1.5rem, 5vw, 3.5rem); border: 1px solid #334155; border-radius: 2rem; background: #0f172a; box-shadow: 0 24px 80px #0008; }
+h1 { font-size: clamp(2rem, 7vw, 4rem); line-height: 1.05; margin: .5rem 0 1.5rem; color: white; } h1 small { color:#94a3b8; font-size:.4em; }
+h2 { margin-top: 2rem; color:#fcd34d; } p, li { line-height:1.65; } label { display:block; margin:1rem 0; font-weight:700; } label span { display:block; margin-bottom:.4rem; }
+input, select { width:100%; box-sizing:border-box; padding:.9rem; border:1px solid #475569; border-radius:.75rem; background:#020617; color:white; }
+button { border:0; border-radius:999px; padding:.9rem 1.3rem; background:#fbbf24; color:#0f172a; font-weight:900; margin-top:1rem; } button.secondary { margin-left:.75rem; background:#334155; color:white; }
+.options { display:grid; gap:.7rem; } .options button { text-align:left; margin:0; border-radius:1rem; }
+.score { display:flex; justify-content:space-between; gap:1rem; padding:1rem 0; border-bottom:1px solid #334155; } .disclaimer { padding:1rem; border-left:4px solid #fbbf24; background:#1e293b; }
 button, a, select { cursor: pointer; }
 button, input, select, textarea { font: inherit; }
 button:disabled { cursor: not-allowed; transform: none !important; }

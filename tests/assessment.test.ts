@@ -1,67 +1,15 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { answerCurrentQuestion, getPerformanceRating, hasCompleteAssessment, saveAssessmentAnswer } from '../src/assessment.ts';
-import { isAllFivesAssessment } from '../src/reportIntegrity.ts';
+import assert from 'node:assert/strict'; import test from 'node:test';
+import { applicableQuestions, conditionalQuestions, coreQuestions, healthTracks, questions } from '../src/data.ts';
+import { buildEngineSubmission, calculateResults, clearInapplicableAnswers, hasCompleteAssessment, normalizedScore, PROGRESS_KEY } from '../src/assessment.ts';
+import { ASSESSMENT_VERSION, type Answers, type BusinessContext } from '../src/types.ts';
+const context:BusinessContext={desiredModel:'Owner-led specialist',teamSituation:'Solo owner',ownerReliance:'Everything',priority:'Craft work'};
+const filled=(hasTeam=false,value=3)=>Object.fromEntries(applicableQuestions(hasTeam).map(q=>[q.id,q.id==='TB-FIN-03'?value:value])) as Answers;
+test('V2 contract has exact version, 19 core, one conditional and six tracks',()=>{assert.equal(ASSESSMENT_VERSION,'tradebuilt-contractor-health-check-v2.0');assert.equal(coreQuestions.length,19);assert.equal(conditionalQuestions.length,1);assert.equal(conditionalQuestions[0].id,'TB-CAP-01');assert.deepEqual(healthTracks,['Delivery & Workmanship','Client Experience & Reputation','Commercial Control','Financial Control','Demand & Positioning','Capacity & Direction']);assert.equal(new Set(questions.map(q=>q.id)).size,20)});
+test('solo excludes crew evidence while team requires it and stale data clears',()=>{assert.equal(applicableQuestions(false).length,19);assert.equal(applicableQuestions(true).length,20);assert.equal(hasCompleteAssessment(filled(false),false),true);assert.equal(hasCompleteAssessment(filled(false),true),false);assert.equal(clearInapplicableAnswers({...filled(false),'TB-CAP-01':5},false)['TB-CAP-01'],undefined)});
+test('normalizes scale and excludes N/A from evidence and weakness mechanics',()=>{assert.deepEqual([1,2,3,4,5].map(normalizedScore),[0,25,50,75,100]);const a=filled(false,5);a['TB-FIN-03']=null;const r=calculateResults(a,context,false);assert.equal(r.tracks.find(t=>t.track==='Financial Control')?.applicableEvidence,2);assert.equal(r.tracks.find(t=>t.track==='Financial Control')?.score,100)});
+test('scores equal-weight tracks from applicable scored evidence',()=>{const r=calculateResults(filled(false,3),context,false);assert.equal(r.overall,50);assert.equal(r.tracks.length,6);assert.match(r.disclaimer,/directional, self-reported/)});
+test('owner-led specialist is not penalised but model mismatch is flagged',()=>{const a=filled();assert.equal(calculateResults(a,context,false).risks.some(x=>/owner reliance/.test(x)),false);assert.equal(calculateResults(a,{...context,desiredModel:'Team-led business'},false).risks.some(x=>/owner reliance/.test(x)),true)});
+test('low pricing confidence only flags investigation and never says raise prices',()=>{const a=filled();a['TB-COM-02']=1;const text=JSON.stringify(calculateResults(a,context,false));assert.match(text,/Pricing and value alignment needs deeper investigation/);assert.doesNotMatch(text,/raise (your )?prices/i)});
+test('engine payload is isolated, typed, conditional and versioned',()=>{const p=buildEngineSubmission('stable-id',filled(false),context,false);assert.equal(p.assessmentVersion,ASSESSMENT_VERSION);assert.equal(p.product,'TRADEBUILT');assert.equal(p.answers.length,19);assert.equal(p.answers.some(a=>a.questionId==='TB-CAP-01'),false);assert.equal(p.answers.find(a=>a.questionId==='TB-FIN-03')?.rawType,'SCALE');assert.doesNotMatch(JSON.stringify(p),/brand.blueprint|BBP/i);assert.match(PROGRESS_KEY,/v2\.0/)});
 
-const questionIds = Array.from({ length: 25 }, (_, index) => index + 1);
-
-test('accepts exactly 25 valid assessment answers', () => {
-  const answers = Object.fromEntries(questionIds.map((id) => [id, (id % 5) + 1]));
-
-  assert.equal(hasCompleteAssessment(answers, questionIds), true);
-});
-
-test('rejects missing, extra, and invalid assessment answers', () => {
-  const completeAnswers = Object.fromEntries(questionIds.map((id) => [id, 3]));
-
-  assert.equal(hasCompleteAssessment({ ...completeAnswers, 25: undefined as unknown as number }, questionIds), false);
-  assert.equal(hasCompleteAssessment({ ...completeAnswers, 26: 3 }, questionIds), false);
-  assert.equal(hasCompleteAssessment({ ...completeAnswers, 25: 0 }, questionIds), false);
-  assert.equal(hasCompleteAssessment({ ...completeAnswers, 25: 6 }, questionIds), false);
-  assert.equal(hasCompleteAssessment({ ...completeAnswers, 25: 2.5 }, questionIds), false);
-});
-
-test('saving the final answer preserves every earlier answer', () => {
-  const previousAnswers = Object.fromEntries(questionIds.slice(0, -1).map((id) => [id, (id % 5) + 1]));
-  const completedAnswers = saveAssessmentAnswer(previousAnswers, 25, 5);
-
-  assert.deepEqual(Object.entries(completedAnswers).slice(0, -1), Object.entries(previousAnswers));
-  assert.equal(completedAnswers[25], 5);
-  assert.equal(hasCompleteAssessment(completedAnswers, questionIds), true);
-  assert.notEqual(completedAnswers, previousAnswers);
-});
-
-test('advancing records the current answer and moves to exactly the next question', () => {
-  const firstClick = answerCurrentQuestion({}, 0, questionIds, 3);
-  const repeatedClickBeforeRender = answerCurrentQuestion({}, 0, questionIds, 5);
-
-  assert.equal(firstClick.currentQuestionIndex, 1);
-  assert.equal(repeatedClickBeforeRender.currentQuestionIndex, 1);
-  assert.deepEqual(repeatedClickBeforeRender.answers, { 1: 5 });
-});
-
-test('the final answer is validated from the same completed snapshot', () => {
-  const previousAnswers = Object.fromEntries(questionIds.slice(0, -1).map((id) => [id, 3]));
-  const progress = answerCurrentQuestion(previousAnswers, 24, questionIds, 4);
-
-  assert.equal(progress.isComplete, true);
-  assert.equal(progress.answers[25], 4);
-  assert.equal(progress.currentQuestionIndex, 24);
-});
-
-test('detects only a complete 25-answer all-5s assessment', () => {
-  const perfectAnswers = Object.fromEntries(questionIds.map((id) => [id, 5]));
-  assert.equal(isAllFivesAssessment(perfectAnswers, questionIds), true);
-  assert.equal(isAllFivesAssessment({ ...perfectAnswers, 12: 4 }, questionIds), false);
-  assert.equal(isAllFivesAssessment(perfectAnswers, questionIds.slice(0, 24)), false);
-});
-
-test('maps every score-band boundary to the correct Performance Rating', () => {
-  const expectations = [
-    [100, 'Elite Contractor'], [90, 'Elite Contractor'], [89, 'Excellent Contractor'], [80, 'Excellent Contractor'],
-    [79, 'Strong Contractor'], [70, 'Strong Contractor'], [69, 'Growth Ready'], [60, 'Growth Ready'],
-    [59, 'Growth Constrained'], [50, 'Growth Constrained'], [49, 'Needs Attention'], [0, 'Needs Attention'],
-  ] as const;
-
-  expectations.forEach(([score, rating]) => assert.equal(getPerformanceRating(score), rating));
-});
+test('completed V1 uses frozen legacy interpretation and is not relabelled V2',async()=>{const {interpretCompletedV1,LEGACY_V1_VERSION}=await import('../src/legacyV1.ts');const answers=Object.fromEntries(Array.from({length:25},(_,i)=>[i+1,3]));const map=Object.fromEntries(Array.from({length:25},(_,i)=>[i+1,i<3?'Pricing':'Operations']));const result=interpretCompletedV1(answers,map);assert.equal(result.version,LEGACY_V1_VERSION);assert.equal(result.overall,60);assert.notEqual(result.version,ASSESSMENT_VERSION)});
