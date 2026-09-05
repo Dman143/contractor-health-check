@@ -36,6 +36,8 @@ main {
 
 .card { width: min(820px, 100%); padding: clamp(1.5rem, 5vw, 4rem); border: 1px solid var(--ink); border-radius: 0; background: var(--paper); box-shadow: 12px 12px 0 var(--ink); }
 .card--intro { padding-block: clamp(2.5rem, 8vw, 6rem); }
+.card--intro h1 { margin-bottom: 2rem; font-size: clamp(2.25rem, 6.5vw, 4.6rem); }
+.card--intro button { margin-top: .75rem; }
 .card--results { width: min(920px, 100%); }
 
 .eyebrow { margin: 0 0 1rem; color: var(--orange); font-size: .75rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
@@ -43,8 +45,8 @@ h1 { max-width: 16ch; margin: 0 0 1.5rem; color: var(--ink); font-size: clamp(2.
 h1 small { color: var(--muted); font-size: .34em; letter-spacing: -.02em; }
 h2 { margin: 2.75rem 0 1rem; color: var(--ink); font-size: clamp(1.35rem, 3vw, 1.8rem); letter-spacing: -.03em; }
 p, li { line-height: 1.65; }
-.intro-copy { max-width: 590px; margin-bottom: 1.75rem; color: #45423d; font-size: clamp(1.05rem, 2vw, 1.25rem); }
-.question-count { display: inline-block; margin: 1.5rem 0 0; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+.intro-copy { max-width: 590px; margin-bottom: 2rem; color: #45423d; font-size: clamp(1.05rem, 2vw, 1.25rem); }
+.question-count { margin: 1rem 0 0; color: var(--muted); font-size: .88rem; }
 
 label { display: block; margin: 1.4rem 0; font-weight: 800; }
 label span { display: block; margin-bottom: .55rem; }
@@ -92,6 +94,7 @@ summary { cursor: pointer; }
   .card { padding: 1.5rem; box-shadow: 6px 6px 0 var(--ink); }
   .card--intro { padding-block: 2.5rem; }
   button:not(.options button) { width: 100%; }
+  .card--intro button { width: auto; }
   button.secondary { margin-left: 0; }
   .progress-meta { align-items: end; }
 }
