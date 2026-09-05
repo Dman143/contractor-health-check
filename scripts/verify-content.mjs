@@ -1,11 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 const data=readFileSync(new URL('../src/data.ts',import.meta.url),'utf8'); const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8'); const assessment=readFileSync(new URL('../src/assessment.ts',import.meta.url),'utf8'); const server=readFileSync(new URL('../server/index.mjs',import.meta.url),'utf8');
 if(!existsSync(new URL('../public/tradebuilt-quick-guide.pdf',import.meta.url))) throw new Error('Missing TradeBuilt Quick Guide PDF.');
+if(!existsSync(new URL('../public/tradebuilt_logo_clean.png',import.meta.url))) throw new Error('Missing approved TradeBuilt logo.');
 if(!app.includes('href="/tradebuilt-quick-guide.pdf"')) throw new Error('Quick Guide download does not use the production PDF path.');
 const tracks=['Delivery & Workmanship','Client Experience & Communication','Commercial Control','Financial Control','Demand & Positioning','Capacity & Direction']; tracks.forEach(track=>{if(!data.includes(track))throw new Error(`Missing V2 track: ${track}`)});
 for(const text of ['tradebuilt-contractor-health-check-v2.0','TB-CAP-03','TB-FIN-02']) if(!(data+assessment+server).includes(text)) throw new Error(`Missing V2 contract content: ${text}`);
 if(!data.includes('N/A — clients buy materials directly')) throw new Error('Missing materials N/A option.');
-for(const text of ['Your Health Check is complete.','Daniel will personally review your answers','Download the Free Quick Guide']) if(!app.includes(text)) throw new Error(`Missing personal-review confirmation content: ${text}`);
+for(const text of ['Your Health Check is complete.','I can personally review your answers','I’ll personally review your answers','Download the Free Quick Guide','src="/tradebuilt_logo_clean.png"']) if(!app.includes(text)) throw new Error(`Missing personal-review confirmation content: ${text}`);
+if(/<svg|Daniel will personally review/.test(app)) throw new Error('Legacy TradeBuilt logo or third-person site copy remains.');
 for(const text of ['Strongest areas','Weakest areas','Likely risks','Priority investigation areas']) if(app.includes(text)) throw new Error(`Automated result content remains client-visible: ${text}`);
 const contractorEmail=server.slice(server.indexOf('const formatContractorReceipt'),server.indexOf('const logEmailRoute'));
 if(/\/100|internal score|strongest|weakest|risk|diagnos|action.plan|benchmark/i.test(app+contractorEmail)) throw new Error('Internal scoring or automated advice leaked into a contractor-facing surface.');

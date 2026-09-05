@@ -31,8 +31,7 @@ main {
 
 .shell { width: min(1040px, 100%); margin: 0 auto; }
 .brand-bar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; margin-bottom: clamp(2rem, 7vw, 5.5rem); border-bottom: 1px solid var(--ink); }
-.brand-wordmark { display: block; width: 168px; height: auto; fill: var(--ink); font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -1.25px; }
-.brand-wordmark .logo-mark, .brand-wordmark tspan { fill: var(--orange); }
+.brand-wordmark { display: block; width: 168px; height: auto; }
 
 .card { width: min(820px, 100%); padding: clamp(1.5rem, 5vw, 4rem); border: 1px solid var(--ink); border-radius: 0; background: var(--paper); box-shadow: 12px 12px 0 var(--ink); }
 .card--intro { padding-block: clamp(2.5rem, 8vw, 6rem); }
