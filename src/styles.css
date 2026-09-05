@@ -31,7 +31,7 @@ main {
 
 .shell { width: min(1040px, 100%); margin: 0 auto; }
 .brand-bar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; margin-bottom: clamp(2rem, 7vw, 5.5rem); border-bottom: 1px solid var(--ink); }
-.brand-wordmark { display: block; width: 168px; height: auto; }
+.brand-wordmark { display: block; width: 235px; height: auto; }
 
 .card { width: min(820px, 100%); padding: clamp(1.5rem, 5vw, 4rem); border: 1px solid var(--ink); border-radius: 0; background: var(--paper); box-shadow: 12px 12px 0 var(--ink); }
 .card--intro { padding-block: clamp(2.5rem, 8vw, 6rem); }
@@ -76,6 +76,8 @@ button:hover .button-arrow { transform: translateX(3px); }
 .quick-guide h2 { max-width: 28ch; margin-top: .75rem; }
 .button-link { display: inline-block; margin-top: 1rem; padding: 1rem 1.35rem; border: 1px solid var(--orange); background: var(--orange); color: #111; font-weight: 900; text-decoration: none; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
 .button-link:hover { border-color: var(--ink); background: var(--ink); color: #fff; transform: translateY(-2px); }
+.website-link { display: block; width: fit-content; margin-top: 1.5rem; color: var(--muted); font-size: .9rem; }
+.website-link:hover { color: var(--ink); }
 .small-copy { margin: .65rem 0 0; color: var(--muted); font-size: .88rem; }
 
 .score { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
