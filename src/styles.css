@@ -70,6 +70,14 @@ button:hover .button-arrow { transform: translateX(3px); }
 .options { display: grid; gap: .65rem; }
 .options button { width: 100%; margin: 0; padding: 1.05rem 1.15rem; border-color: #aaa69e; background: #faf9f6; text-align: left; }
 .options button:hover, .options button:focus-visible { border-color: var(--orange); background: var(--orange); color: var(--ink); }
+.options button.selected { border-color: var(--ink); background: var(--orange); color: var(--ink); box-shadow: inset 4px 0 0 var(--ink); }
+.follow-up { margin-top: 1.5rem; padding-top: .1rem; border-top: 1px solid var(--line); }
+
+.quick-guide { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+.quick-guide h2 { max-width: 28ch; margin-top: .75rem; }
+.button-link { display: inline-block; margin-top: 1rem; padding: 1rem 1.35rem; border: 1px solid var(--orange); background: var(--orange); color: #111; font-weight: 900; text-decoration: none; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
+.button-link:hover { border-color: var(--ink); background: var(--ink); color: #fff; transform: translateY(-2px); }
+.small-copy { margin: .65rem 0 0; color: var(--muted); font-size: .88rem; }
 
 .score { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
 .score span { color: var(--orange); font-weight: 900; }
