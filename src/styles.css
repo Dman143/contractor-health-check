@@ -43,6 +43,7 @@ main {
 
 .eyebrow { margin: 0 0 1rem; color: var(--orange); font-size: .75rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 h1 { max-width: 16ch; margin: 0 0 1.5rem; color: var(--ink); font-size: clamp(2.35rem, 7vw, 5rem); font-weight: 900; letter-spacing: -.055em; line-height: .98; }
+.heading-full-stop { color: #FC3000; }
 h1 small { color: var(--muted); font-size: .34em; letter-spacing: -.02em; }
 h2 { margin: 2.75rem 0 1rem; color: var(--ink); font-size: clamp(1.35rem, 3vw, 1.8rem); letter-spacing: -.03em; }
 p, li { line-height: 1.65; }
