@@ -10,10 +10,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: OPENAI_MODEL
-        value: gpt-5-mini
-      - key: OPENAI_API_KEY
-        sync: false
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS

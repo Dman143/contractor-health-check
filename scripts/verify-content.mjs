@@ -5,7 +5,8 @@ if(!app.includes('href="/tradebuilt-quick-guide.pdf"')) throw new Error('Quick G
 const tracks=['Delivery & Workmanship','Client Experience & Communication','Commercial Control','Financial Control','Demand & Positioning','Capacity & Direction']; tracks.forEach(track=>{if(!data.includes(track))throw new Error(`Missing V2 track: ${track}`)});
 for(const text of ['tradebuilt-contractor-health-check-v2.0','TB-CAP-03','TB-FIN-02']) if(!(data+assessment+server).includes(text)) throw new Error(`Missing V2 contract content: ${text}`);
 if(!data.includes('N/A — clients buy materials directly')) throw new Error('Missing materials N/A option.');
-for(const text of ['Your Health Check is complete.','No generic automated diagnosis — a real review of your business.','Download the Free Quick Guide']) if(!app.includes(text)) throw new Error(`Missing personal-review confirmation content: ${text}`);
+for(const text of ['Your Health Check is complete.','Daniel will personally review your answers','Download the Free Quick Guide']) if(!app.includes(text)) throw new Error(`Missing personal-review confirmation content: ${text}`);
 for(const text of ['Strongest areas','Weakest areas','Likely risks','Priority investigation areas']) if(app.includes(text)) throw new Error(`Automated result content remains client-visible: ${text}`);
-const v2Email=server.slice(server.indexOf('const formatReportEmail'),server.indexOf('const logEmailRoute')); if(/Industry Average|Quick wins|30-Day Action Plan/i.test(app+v2Email)) throw new Error('V1 benchmark or paid action-plan content leaked into V2 output.');
+const contractorEmail=server.slice(server.indexOf('const formatContractorReceipt'),server.indexOf('const logEmailRoute'));
+if(/\/100|internal score|strongest|weakest|risk|diagnos|action.plan|benchmark/i.test(app+contractorEmail)) throw new Error('Internal scoring or automated advice leaked into a contractor-facing surface.');
 console.log('TradeBuilt V2 content smoke test passed.');

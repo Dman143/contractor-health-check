@@ -1,28 +1,32 @@
-# TradeBuilt
+# TradeBuilt Contractor Health Check
 
-TradeBuilt is a contractor growth platform that turns a focused 25-question business assessment into a benchmarked scorecard, AI-generated consulting insights, and a practical 30-day action plan.
+The current TradeBuilt Contractor Health Check is a focused assessment for trade contractors. Its ordered registry contains 20 approved questions; the crew/staff question is conditional, so solo contractors answer 19 applicable questions.
 
-## Product experience
+## Current product contract
 
-- Contractor-specific business profile and assessment across eight operating categories
-- Business Health Score with unchanged peer benchmarks, strengths, and constraints
-- Personalized contractor consulting report generated with the OpenAI Responses API in production and a deterministic local fallback when no API key is configured
-- Polished, multi-page PDF report generated in the browser
-- Branded email report delivered directly to the contractor
-- Strategy-session requests routed to the TradeBuilt advisory inbox
-- Responsive dark interface built with React, TypeScript, and Tailwind CSS
+The six health areas, in order, are:
 
-## Email delivery
+1. Delivery & Workmanship
+2. Client Experience & Communication
+3. Commercial Control
+4. Financial Control
+5. Demand & Positioning
+6. Capacity & Direction
 
-The production server exposes one OpenAI-backed endpoint and two SMTP-backed endpoints:
+The application must not show contractors a numerical score, compare them with peers, generate a diagnosis, or generate an action plan. Answers and internal scoring are retained for Daniel, who personally reviews every completed Health Check. The contractor receives a simple completion confirmation and can download the approved TradeBuilt Quick Guide while waiting.
+
+The approved question wording and answer options in `src/data.ts` are the source of truth. Historical V1 compatibility code must not be used to redefine or migrate the current registry.
+
+## Submission and email delivery
+
+The browser submits the completed assessment to two same-origin endpoints:
 
 ```text
-POST /api/consulting-insights
+POST /api/engine-ingestion
 POST /api/email-report
-POST /api/strategy-session
 ```
 
-`/api/consulting-insights` sends the completed business profile, scorecard, benchmark gaps, and compact category-grouped answers to OpenAI and returns a structured consulting report. The API key and prompt remain on the server. `/api/email-report` sends the attached PDF to the contractor and blind-copies the configured TradeBuilt recipient. `/api/strategy-session` sends strategy requests to that recipient with the contractor's address set as the reply-to contact. The recipient defaults to `daniel@tradebuilt.pro`.
+Engine ingestion is non-blocking and optional. The email route sends Daniel the full review record—including the applicable answers, context, internal results, and internal PDF—and separately sends the contractor a score-free receipt with a link to the existing Quick Guide. The review recipient defaults through deployment configuration to `daniel@tradebuilt.pro`.
 
 ### Production environment variables
 
@@ -34,20 +38,14 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_EHLO_DOMAIN=tradebuilt.pro
-OPENAI_API_KEY=your-openai-api-key
 TRADEBUILT_RECIPIENT_EMAIL=daniel@tradebuilt.pro
 ```
 
-`OPENAI_API_KEY` enables live AI-generated consulting insights. When it is absent, the server automatically returns a personalized, deterministic consulting plan derived from the assessment scores, so local development requires no `.env` file. All eight SMTP variables shown above are required for email delivery. Keep production credentials in encrypted environment variables; never use a `VITE_` prefix for secrets. Runtime diagnostics report only each variable's presence, format validity, and load status; values are never logged. For Gmail, use an app password for `SMTP_PASS`; spaces copied from Google's grouped app-password display are normalized before authentication.
+All SMTP variables above are required. Keep credentials in encrypted environment variables and never use a `VITE_` prefix for secrets. Gmail app-password spaces are normalized before authentication. Runtime diagnostics report presence and format validity without logging values.
 
-### Optional environment variables
+## Quick Guide
 
-```bash
-PORT=4174
-OPENAI_MODEL=gpt-5-mini
-```
-
-The SMTP settings have no implicit production defaults so a deployment cannot silently use the wrong server or sender.
+`public/tradebuilt-quick-guide.pdf` is the approved, already-working binary asset. Do not parse, modify, regenerate, or replace it. The production build verification checks that it is copied unchanged into `dist/`.
 
 ## Local development
 
@@ -56,11 +54,7 @@ npm install
 npm run dev
 ```
 
-The development command starts both Vite and the API server. Vite proxies `/api`
-requests to the server on port 4174. Use `npm run dev:frontend` only when the API
-is deliberately being run separately. No API key or `.env` file is needed to complete
-an assessment locally; add `OPENAI_API_KEY` only when you want to exercise the live
-OpenAI integration.
+The development command starts Vite and the API server. Vite proxies `/api` requests to port 4174. Use `npm run dev:frontend` only when running the API separately.
 
 ## Production
 
@@ -69,9 +63,4 @@ npm run build
 npm start
 ```
 
-The Node server serves the production build from `dist/` and handles both email endpoints.
-
-On Vercel, the files in `api/` expose the same relative `/api/*` URLs as deployed
-serverless functions. The browser therefore uses same-origin requests in both local
-development and production; the localhost address in `vite.config.ts` is only the
-Vite development proxy target and is not included in the production request URL.
+The Node server serves `dist/` and handles the submission endpoints. On Vercel, files in `api/` expose the same relative URLs as serverless functions.
