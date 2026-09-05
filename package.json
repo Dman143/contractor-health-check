@@ -7,7 +7,7 @@
     "test": "node --test tests/*.test.ts",
     "dev": "node scripts/dev.mjs",
     "dev:frontend": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/verify-build-assets.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "verify:content": "node scripts/verify-content.mjs",
     "dev:server": "node server/index.mjs",
