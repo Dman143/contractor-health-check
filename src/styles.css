@@ -31,6 +31,8 @@ main {
 
 .shell { width: min(1040px, 100%); margin: 0 auto; }
 .brand-bar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; margin-bottom: clamp(2rem, 7vw, 5.5rem); border-bottom: 1px solid var(--ink); }
+.brand-wordmark { display: block; width: 140px; height: auto; fill: var(--ink); font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 900; letter-spacing: -1.25px; }
+.brand-wordmark tspan { fill: var(--orange); }
 .wordmark { display: inline-flex; align-items: center; gap: .65rem; color: var(--ink); font-size: 1.05rem; font-weight: 950; letter-spacing: -.035em; }
 .wordmark-mark { width: 12px; height: 12px; background: var(--orange); }
 
@@ -46,7 +48,7 @@ h1 small { color: var(--muted); font-size: .34em; letter-spacing: -.02em; }
 h2 { margin: 2.75rem 0 1rem; color: var(--ink); font-size: clamp(1.35rem, 3vw, 1.8rem); letter-spacing: -.03em; }
 p, li { line-height: 1.65; }
 .intro-copy { max-width: 590px; margin-bottom: 2rem; color: #45423d; font-size: clamp(1.05rem, 2vw, 1.25rem); }
-.question-count { margin: 1rem 0 0; color: var(--muted); font-size: .88rem; }
+.question-count { margin: 1.25rem 0 0; color: var(--muted); font-size: .88rem; }
 
 label { display: block; margin: 1.4rem 0; font-weight: 800; }
 label span { display: block; margin-bottom: .55rem; }
