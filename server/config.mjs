@@ -18,10 +18,6 @@ const smtpPassword = () => {
 
 export const getConfig = () => Object.freeze({
   port: Number(process.env.PORT ?? 4174),
-  openai: Object.freeze({
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
-  }),
   environment: process.env.NODE_ENV ?? 'development',
   assessmentRecipientEmail: env('TRADEBUILT_RECIPIENT_EMAIL'),
   smtp: Object.freeze({

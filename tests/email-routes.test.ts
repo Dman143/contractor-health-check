@@ -61,20 +61,18 @@ test('email routes use production-compatible SMTP variables and deliver to the i
 
   try {
     const reportResponse = await post('/api/email-report?source=production', {
-      leadProfile: { name: 'Pat', company: 'Pat Plumbing', email: 'pat@example.com' },
-      results: { overall: 72, industryAverage: 60, performanceRating: 'Strong Contractor', performanceRatingExplanation: 'Test', categories: [{ category: 'Pricing', score: 72, industryAverage: 60, difference: 12 }] },
+      leadProfile: { name: 'Pat', company: 'Pat Plumbing', email: 'pat@example.com', phone: '', trade: 'Plumbing' },
+      context: { desiredModel: 'Owner-led specialist', teamSituation: 'Solo owner', ownerReliance: 'Almost everything', priority: 'More profitable work' },
+      crewQuestionShown: false,
+      answers: Array.from({ length: 19 }, (_, index) => ({ questionId: `TB-${index + 1}`, question: `Question ${index + 1}`, answer: 'Usually' })),
+      results: { assessmentVersion: 'tradebuilt-contractor-health-check-v2.0', overall: 72, tracks: Array.from({ length: 6 }, (_, index) => ({ track: `Track ${index + 1}`, score: 72 })) },
       pdf: { filename: 'tradebuilt-report.pdf', base64: Buffer.from('pdf').toString('base64') },
     });
     assert.equal(reportResponse.status, 200);
 
-    const strategyResponse = await post('/api/strategy-session/', {
-      name: 'Pat', company: 'Pat Plumbing', email: 'pat@example.com', phone: '', message: 'Growth', assessmentScore: 72, priorityArea: 'Pricing',
-    });
-    assert.equal(strategyResponse.status, 200);
     assert.deepEqual(recipients, [
+      'RCPT TO:<advisor@example.com>',
       'RCPT TO:<pat@example.com>',
-      'RCPT TO:<advisor@example.com>',
-      'RCPT TO:<advisor@example.com>',
     ]);
   } finally {
     await new Promise<void>((resolve) => app.close(() => resolve()));
